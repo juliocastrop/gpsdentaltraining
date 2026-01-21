@@ -1074,3 +1074,383 @@ export async function getAllHeroSlides(): Promise<HeroSlide[]> {
   if (error) throw error;
   return data || [];
 }
+
+// ============================================================
+// USER ACCOUNT - ORDERS
+// ============================================================
+
+export interface OrderWithItems {
+  id: string;
+  order_number: string;
+  user_id: string;
+  stripe_session_id?: string;
+  billing_email: string;
+  billing_name: string;
+  billing_phone?: string;
+  subtotal: number;
+  discount: number;
+  total: number;
+  status: string;
+  payment_status: string;
+  notes?: string;
+  created_at: string;
+  completed_at?: string;
+  items: OrderItem[];
+}
+
+export interface OrderItem {
+  id: string;
+  order_id: string;
+  ticket_type_id: string;
+  event_id: string;
+  quantity: number;
+  unit_price: number;
+  total: number;
+  ticket_type?: {
+    id: string;
+    name: string;
+    ticket_type: string;
+  };
+  event?: Event;
+}
+
+/**
+ * Get user's orders with items
+ */
+export async function getUserOrders(userId: string): Promise<OrderWithItems[]> {
+  const { data, error } = await supabaseAdmin
+    .from('orders')
+    .select(`
+      *,
+      items:order_items (
+        *,
+        ticket_type:ticket_types (id, name, ticket_type),
+        event:events (*)
+      )
+    `)
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return (data || []) as OrderWithItems[];
+}
+
+/**
+ * Get single order by ID
+ */
+export async function getOrderById(orderId: string): Promise<OrderWithItems | null> {
+  const { data, error } = await supabaseAdmin
+    .from('orders')
+    .select(`
+      *,
+      items:order_items (
+        *,
+        ticket_type:ticket_types (id, name, ticket_type),
+        event:events (*)
+      )
+    `)
+    .eq('id', orderId)
+    .single();
+
+  if (error) throw error;
+  return data as OrderWithItems;
+}
+
+/**
+ * Get order by Stripe session ID
+ */
+export async function getOrderByStripeSession(sessionId: string): Promise<OrderWithItems | null> {
+  const { data, error } = await supabaseAdmin
+    .from('orders')
+    .select(`
+      *,
+      items:order_items (
+        *,
+        ticket_type:ticket_types (id, name, ticket_type),
+        event:events (*)
+      )
+    `)
+    .eq('stripe_session_id', sessionId)
+    .single();
+
+  if (error) {
+    if (error.code === 'PGRST116') return null; // Not found
+    throw error;
+  }
+  return data as OrderWithItems;
+}
+
+// ============================================================
+// USER ACCOUNT - TICKETS
+// ============================================================
+
+export interface TicketWithEvent {
+  id: string;
+  ticket_code: string;
+  ticket_type_id: string;
+  event_id: string;
+  order_id: string;
+  user_id: string;
+  attendee_name: string;
+  attendee_email: string;
+  qr_code_url?: string;
+  status: string;
+  created_at: string;
+  used_at?: string;
+  ticket_type?: {
+    id: string;
+    name: string;
+    ticket_type: string;
+  };
+  event?: Event;
+}
+
+/**
+ * Get user's tickets with event info
+ */
+export async function getUserTickets(userId: string): Promise<TicketWithEvent[]> {
+  const { data, error } = await supabaseAdmin
+    .from('tickets')
+    .select(`
+      *,
+      ticket_type:ticket_types (id, name, ticket_type),
+      event:events (*)
+    `)
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return (data || []) as TicketWithEvent[];
+}
+
+/**
+ * Get user's upcoming valid tickets
+ */
+export async function getUserUpcomingTickets(userId: string): Promise<TicketWithEvent[]> {
+  const { data, error } = await supabaseAdmin
+    .from('tickets')
+    .select(`
+      *,
+      ticket_type:ticket_types (id, name, ticket_type),
+      event:events (*)
+    `)
+    .eq('user_id', userId)
+    .eq('status', 'valid')
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+
+  // Filter to only show tickets for future events
+  const now = new Date();
+  return ((data || []) as TicketWithEvent[]).filter(ticket => {
+    if (!ticket.event?.start_date) return true;
+    return new Date(ticket.event.start_date) >= now;
+  });
+}
+
+/**
+ * Get ticket by code (for QR validation)
+ */
+export async function getTicketByCode(code: string): Promise<TicketWithEvent | null> {
+  const { data, error } = await supabaseAdmin
+    .from('tickets')
+    .select(`
+      *,
+      ticket_type:ticket_types (id, name, ticket_type),
+      event:events (*)
+    `)
+    .eq('ticket_code', code)
+    .single();
+
+  if (error) {
+    if (error.code === 'PGRST116') return null;
+    throw error;
+  }
+  return data as TicketWithEvent;
+}
+
+// ============================================================
+// USER ACCOUNT - CERTIFICATES
+// ============================================================
+
+export interface CertificateWithEvent {
+  id: string;
+  certificate_code: string;
+  ticket_id?: string;
+  user_id: string;
+  event_id: string;
+  attendee_name: string;
+  pdf_url?: string;
+  generated_at: string;
+  sent_at?: string;
+  event?: Event;
+}
+
+/**
+ * Get user's certificates
+ */
+export async function getUserCertificates(userId: string): Promise<CertificateWithEvent[]> {
+  const { data, error } = await supabaseAdmin
+    .from('certificates')
+    .select(`
+      *,
+      event:events (*)
+    `)
+    .eq('user_id', userId)
+    .order('generated_at', { ascending: false });
+
+  if (error) throw error;
+  return (data || []) as CertificateWithEvent[];
+}
+
+/**
+ * Get certificate by code (for public validation)
+ */
+export async function getCertificateByCode(code: string): Promise<CertificateWithEvent | null> {
+  const { data, error } = await supabaseAdmin
+    .from('certificates')
+    .select(`
+      *,
+      event:events (*)
+    `)
+    .eq('certificate_code', code)
+    .single();
+
+  if (error) {
+    if (error.code === 'PGRST116') return null;
+    throw error;
+  }
+  return data as CertificateWithEvent;
+}
+
+// ============================================================
+// USER ACCOUNT - SEMINAR REGISTRATIONS
+// ============================================================
+
+export interface SeminarRegistrationWithDetails {
+  id: string;
+  user_id: string;
+  seminar_id: string;
+  order_id?: string;
+  registration_date: string;
+  start_session_date?: string;
+  sessions_completed: number;
+  sessions_remaining: number;
+  makeup_used: boolean;
+  status: string;
+  qr_code?: string;
+  qr_code_url?: string;
+  notes?: string;
+  created_at: string;
+  seminar?: Seminar;
+  attendance?: SeminarAttendanceRecord[];
+}
+
+export interface SeminarAttendanceRecord {
+  id: string;
+  registration_id: string;
+  session_id: string;
+  user_id: string;
+  seminar_id: string;
+  attended: boolean;
+  checked_in_at: string;
+  is_makeup: boolean;
+  credits_awarded: number;
+  session?: SeminarSession;
+}
+
+/**
+ * Get user's seminar registrations with attendance
+ */
+export async function getUserSeminarRegistrations(userId: string): Promise<SeminarRegistrationWithDetails[]> {
+  const { data, error } = await supabaseAdmin
+    .from('seminar_registrations')
+    .select(`
+      *,
+      seminar:seminars (*),
+      attendance:seminar_attendance (
+        *,
+        session:seminar_sessions (*)
+      )
+    `)
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return (data || []) as SeminarRegistrationWithDetails[];
+}
+
+/**
+ * Get active seminar registration for user
+ */
+export async function getUserActiveSeminarRegistration(userId: string): Promise<SeminarRegistrationWithDetails | null> {
+  const { data, error } = await supabaseAdmin
+    .from('seminar_registrations')
+    .select(`
+      *,
+      seminar:seminars (*),
+      attendance:seminar_attendance (
+        *,
+        session:seminar_sessions (*)
+      )
+    `)
+    .eq('user_id', userId)
+    .eq('status', 'active')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data as SeminarRegistrationWithDetails;
+}
+
+// ============================================================
+// CHECKOUT HELPERS
+// ============================================================
+
+/**
+ * Get user by Clerk ID
+ */
+export async function getUserByClerkId(clerkId: string) {
+  const { data, error } = await supabaseAdmin
+    .from('users')
+    .select('*')
+    .eq('clerk_id', clerkId)
+    .single();
+
+  if (error) {
+    if (error.code === 'PGRST116') return null;
+    throw error;
+  }
+  return data;
+}
+
+/**
+ * Create or get user by email (for guest checkout)
+ */
+export async function getOrCreateUserByEmail(email: string, name?: string) {
+  // Try to find existing user
+  const { data: existingUser } = await supabaseAdmin
+    .from('users')
+    .select('*')
+    .eq('email', email.toLowerCase())
+    .maybeSingle();
+
+  if (existingUser) return existingUser;
+
+  // Create new guest user
+  const nameParts = (name || '').split(' ');
+  const { data: newUser, error } = await supabaseAdmin
+    .from('users')
+    .insert({
+      email: email.toLowerCase(),
+      first_name: nameParts[0] || null,
+      last_name: nameParts.slice(1).join(' ') || null,
+      role: 'customer',
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return newUser;
+}

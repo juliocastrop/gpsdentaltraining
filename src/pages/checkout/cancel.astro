@@ -1,0 +1,128 @@
+---
+/**
+ * Checkout Cancelled Page - GPS Dental Training
+ * Shown when user cancels the Stripe checkout
+ */
+import '../../styles/global.css';
+import Navbar from '../../components/layout/Navbar';
+import Footer from '../../components/layout/Footer';
+---
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+
+    <title>Checkout Cancelled | GPS Dental Training</title>
+  </head>
+
+  <body class="min-h-screen flex flex-col bg-[#F8F9FA]">
+    <Navbar
+      logo="/logo.svg"
+      transparent={false}
+      client:load
+    />
+
+    <!-- Spacer for fixed navbar -->
+    <div class="h-20"></div>
+
+    <main class="flex-1 py-12 lg:py-16">
+      <div class="container mx-auto px-4 lg:px-8 max-w-2xl text-center">
+        <!-- Cancel Icon -->
+        <div class="w-20 h-20 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-6">
+          <svg class="w-10 h-10 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+          </svg>
+        </div>
+
+        <h1 class="text-3xl lg:text-4xl font-bold text-[#0C2044] mb-4">
+          Checkout Cancelled
+        </h1>
+        <p class="text-lg text-gray-600 mb-8 max-w-md mx-auto">
+          Your checkout was cancelled and no payment was processed. Your cart items are still saved.
+        </p>
+
+        <!-- Info Card -->
+        <div class="bg-white rounded-xl shadow-sm p-6 mb-8 text-left">
+          <h2 class="font-bold text-[#0C2044] mb-4">What happened?</h2>
+          <ul class="space-y-3 text-gray-600">
+            <li class="flex items-start gap-3">
+              <svg class="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+              </svg>
+              <span>No payment was charged to your card</span>
+            </li>
+            <li class="flex items-start gap-3">
+              <svg class="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+              </svg>
+              <span>Your cart items are preserved</span>
+            </li>
+            <li class="flex items-start gap-3">
+              <svg class="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+              </svg>
+              <span>You can return to checkout anytime</span>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex flex-col sm:flex-row gap-4 justify-center">
+          <a
+            href="/courses"
+            class="inline-flex items-center justify-center gap-2 px-6 py-3 bg-[#0B52AC] text-white font-semibold rounded-lg hover:bg-[#0C2044] transition-colors"
+          >
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+            </svg>
+            Continue Browsing
+          </a>
+          <a
+            href="/contact"
+            class="inline-flex items-center justify-center gap-2 px-6 py-3 bg-white text-[#0C2044] font-semibold rounded-lg border border-gray-200 hover:border-[#0C2044] transition-colors"
+          >
+            Need Help?
+          </a>
+        </div>
+
+        <!-- Support Section -->
+        <div class="mt-12 p-6 bg-gradient-to-r from-[#0C2044] to-[#173D84] rounded-xl text-white text-left">
+          <div class="flex items-start gap-4">
+            <div class="w-12 h-12 bg-white/10 rounded-lg flex items-center justify-center flex-shrink-0">
+              <svg class="w-6 h-6 text-[#DDC89D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+            </div>
+            <div>
+              <h3 class="font-bold text-lg mb-2">Having Trouble?</h3>
+              <p class="text-white/80 text-sm mb-3">
+                If you experienced any issues during checkout or have questions about registration, our team is here to help.
+              </p>
+              <a
+                href="/contact"
+                class="inline-flex items-center gap-2 text-[#DDC89D] font-semibold hover:underline"
+              >
+                Contact Support
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/>
+                </svg>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <Footer client:load />
+  </body>
+</html>
