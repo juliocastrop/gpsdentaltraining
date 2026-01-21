@@ -1,0 +1,551 @@
+---
+/**
+ * Admin Waitlist Page - GPS Dental Training
+ * Manage waitlist entries and notify users when spots open
+ */
+import '../../../styles/global.css';
+import Navbar from '../../../components/layout/Navbar';
+import Footer from '../../../components/layout/Footer';
+import { supabaseAdmin } from '../../../lib/supabase/client';
+import {
+  getAllEventsAdmin,
+  getEventWaitlistAdmin,
+  getAllWaitlistAdmin,
+} from '../../../lib/supabase/queries';
+
+// Check if Clerk is configured
+const clerkConfigured = !!process.env.PUBLIC_CLERK_PUBLISHABLE_KEY;
+
+// Get user from Clerk if available
+let userId: string | null = null;
+let isAdmin = false;
+try {
+  if (clerkConfigured && Astro.locals.auth) {
+    const auth = Astro.locals.auth();
+    userId = auth?.userId || null;
+
+    if (userId) {
+      const { data: userData } = await supabaseAdmin
+        .from('users')
+        .select('role')
+        .eq('clerk_id', userId)
+        .single();
+      isAdmin = userData?.role === 'admin';
+    }
+  }
+} catch {
+  // Clerk not available
+}
+
+// Redirect if not logged in or not admin
+if (clerkConfigured && (!userId || !isAdmin)) {
+  return Astro.redirect('/sign-in?redirect_url=/admin/waitlist');
+}
+
+// Get selected event from query params
+const selectedEventId = Astro.url.searchParams.get('event');
+const view = Astro.url.searchParams.get('view') || 'all';
+
+// Fetch data
+let events: any[] = [];
+let selectedEvent: any = null;
+let waitlistEntries: any[] = [];
+
+try {
+  events = await getAllEventsAdmin();
+
+  if (view === 'all' && !selectedEventId) {
+    waitlistEntries = await getAllWaitlistAdmin();
+  } else if (selectedEventId) {
+    selectedEvent = events.find(e => e.id === selectedEventId);
+    if (selectedEvent) {
+      waitlistEntries = await getEventWaitlistAdmin(selectedEventId);
+    }
+  }
+} catch (error) {
+  console.error('Error fetching data:', error);
+}
+
+// Stats
+const waitingCount = waitlistEntries.filter(w => w.status === 'waiting').length;
+const notifiedCount = waitlistEntries.filter(w => w.status === 'notified').length;
+const expiredCount = waitlistEntries.filter(w => w.status === 'expired').length;
+
+function formatDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+function formatDateTime(dateStr: string): string {
+  return new Date(dateStr).toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function getStatusColor(status: string) {
+  switch (status) {
+    case 'waiting':
+      return 'bg-yellow-100 text-yellow-700';
+    case 'notified':
+      return 'bg-blue-100 text-blue-700';
+    case 'converted':
+      return 'bg-green-100 text-green-700';
+    case 'expired':
+      return 'bg-red-100 text-red-700';
+    case 'cancelled':
+      return 'bg-gray-100 text-gray-700';
+    default:
+      return 'bg-gray-100 text-gray-700';
+  }
+}
+
+function isExpiringSoon(expiresAt: string | null): boolean {
+  if (!expiresAt) return false;
+  const expires = new Date(expiresAt);
+  const now = new Date();
+  const hoursLeft = (expires.getTime() - now.getTime()) / (1000 * 60 * 60);
+  return hoursLeft > 0 && hoursLeft < 12;
+}
+---
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+
+    <title>Waitlist Management | Admin | GPS Dental Training</title>
+  </head>
+
+  <body class="min-h-screen flex flex-col bg-[#F8F9FA]">
+    <Navbar
+      logo="/logo.svg"
+      transparent={false}
+      client:load
+    />
+
+    <!-- Spacer for fixed navbar -->
+    <div class="h-20"></div>
+
+    <main class="flex-1 py-8 lg:py-12">
+      <div class="container mx-auto px-4 lg:px-8 max-w-6xl">
+        <!-- Breadcrumb -->
+        <nav class="flex items-center gap-2 text-sm text-gray-500 mb-6">
+          <a href="/admin" class="hover:text-[#0B52AC] transition-colors">Admin</a>
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+          </svg>
+          <span class="text-[#0C2044] font-medium">Waitlist</span>
+        </nav>
+
+        <!-- Header -->
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-8">
+          <div>
+            <h1 class="text-3xl font-bold text-[#0C2044] mb-2">Waitlist Management</h1>
+            <p class="text-gray-600">
+              Manage waitlist entries and notify users when spots become available.
+            </p>
+          </div>
+        </div>
+
+        <!-- Filter Controls -->
+        <div class="bg-white rounded-xl shadow-sm p-6 mb-6">
+          <div class="flex flex-col md:flex-row gap-4">
+            <div class="flex-1">
+              <label for="event-select" class="block text-sm font-medium text-gray-700 mb-2">
+                Filter by Event
+              </label>
+              <select
+                id="event-select"
+                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC] focus:border-transparent"
+                onchange="window.location.href = this.value ? `/admin/waitlist?event=${this.value}` : '/admin/waitlist'"
+              >
+                <option value="">All Events</option>
+                {events.map((event) => (
+                  <option value={event.id} selected={event.id === selectedEventId}>
+                    {event.title?.replace('[TEST] ', '')} - {formatDate(event.start_date)}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div class="flex items-end gap-2">
+              <a
+                href="/admin/waitlist"
+                class={`px-4 py-2 rounded-lg font-medium transition-colors ${!selectedEventId ? 'bg-[#0B52AC] text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+              >
+                All
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Stats -->
+        <div class="grid md:grid-cols-4 gap-4 mb-6">
+          <div class="bg-white rounded-xl shadow-sm p-6">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+                <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+              </div>
+              <div>
+                <p class="text-2xl font-bold text-[#0C2044]">{waitingCount}</p>
+                <p class="text-sm text-gray-500">Waiting</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-xl shadow-sm p-6">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+                </svg>
+              </div>
+              <div>
+                <p class="text-2xl font-bold text-[#0C2044]">{notifiedCount}</p>
+                <p class="text-sm text-gray-500">Notified</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-xl shadow-sm p-6">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+              </div>
+              <div>
+                <p class="text-2xl font-bold text-[#0C2044]">{waitlistEntries.filter(w => w.status === 'converted').length}</p>
+                <p class="text-sm text-gray-500">Converted</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-xl shadow-sm p-6">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
+                <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+              </div>
+              <div>
+                <p class="text-2xl font-bold text-[#0C2044]">{expiredCount}</p>
+                <p class="text-sm text-gray-500">Expired</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Waitlist Table -->
+        <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+          <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+            <h3 class="font-semibold text-[#0C2044]">
+              Waitlist Entries ({waitlistEntries.length})
+            </h3>
+          </div>
+
+          {waitlistEntries.length > 0 ? (
+            <div class="overflow-x-auto">
+              <table class="w-full">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Position</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Contact</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Event / Ticket</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Joined</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
+                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Actions</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                  {waitlistEntries.map((entry) => (
+                    <tr class={isExpiringSoon(entry.expires_at) ? 'bg-red-50' : ''}>
+                      <td class="px-4 py-4">
+                        <span class="inline-flex items-center justify-center w-8 h-8 bg-gray-100 rounded-full text-sm font-semibold text-gray-700">
+                          #{entry.position}
+                        </span>
+                      </td>
+                      <td class="px-4 py-4">
+                        <div>
+                          <p class="font-medium text-[#0C2044]">
+                            {entry.first_name && entry.last_name
+                              ? `${entry.first_name} ${entry.last_name}`
+                              : entry.email.split('@')[0]}
+                          </p>
+                          <p class="text-sm text-gray-500">{entry.email}</p>
+                          {entry.phone && (
+                            <p class="text-sm text-gray-400">{entry.phone}</p>
+                          )}
+                        </div>
+                      </td>
+                      <td class="px-4 py-4">
+                        <div>
+                          <p class="font-medium text-[#0C2044] text-sm">
+                            {entry.event?.title?.replace('[TEST] ', '')}
+                          </p>
+                          {entry.ticket_type && (
+                            <p class="text-sm text-gray-500">
+                              {entry.ticket_type.name} - ${entry.ticket_type.price}
+                            </p>
+                          )}
+                        </div>
+                      </td>
+                      <td class="px-4 py-4 text-sm text-gray-600">
+                        {formatDateTime(entry.created_at)}
+                      </td>
+                      <td class="px-4 py-4">
+                        <div class="space-y-1">
+                          <span class={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(entry.status)}`}>
+                            {entry.status.charAt(0).toUpperCase() + entry.status.slice(1)}
+                          </span>
+                          {entry.status === 'notified' && entry.expires_at && (
+                            <p class={`text-xs ${isExpiringSoon(entry.expires_at) ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
+                              Expires: {formatDateTime(entry.expires_at)}
+                            </p>
+                          )}
+                        </div>
+                      </td>
+                      <td class="px-4 py-4">
+                        <div class="flex items-center gap-2">
+                          {entry.status === 'waiting' && (
+                            <button
+                              class="notify-btn px-3 py-1 bg-[#0B52AC] text-white text-sm font-semibold rounded-lg hover:bg-[#0C2044] transition-colors"
+                              data-waitlist-id={entry.id}
+                              data-ticket-type-id={entry.ticket_type_id}
+                              data-email={entry.email}
+                            >
+                              Notify
+                            </button>
+                          )}
+                          {entry.status === 'notified' && (
+                            <button
+                              class="resend-btn px-3 py-1 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors"
+                              data-waitlist-id={entry.id}
+                              data-email={entry.email}
+                            >
+                              Resend
+                            </button>
+                          )}
+                          {(entry.status === 'waiting' || entry.status === 'notified') && (
+                            <button
+                              class="cancel-btn px-3 py-1 bg-gray-100 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-200 transition-colors"
+                              data-waitlist-id={entry.id}
+                            >
+                              Cancel
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div class="text-center py-12">
+              <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+                </svg>
+              </div>
+              <p class="text-gray-500">
+                {selectedEventId
+                  ? 'No waitlist entries for this event.'
+                  : 'No active waitlist entries.'}
+              </p>
+            </div>
+          )}
+        </div>
+
+        <!-- Info Card -->
+        <div class="mt-6 bg-blue-50 rounded-xl p-6">
+          <div class="flex items-start gap-4">
+            <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+              <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+            </div>
+            <div>
+              <h3 class="font-semibold text-[#0C2044] mb-1">How Waitlist Works</h3>
+              <ul class="text-sm text-gray-600 space-y-1">
+                <li><strong>Waiting:</strong> User is in queue waiting for a spot to open.</li>
+                <li><strong>Notified:</strong> User has been notified of an available spot. They have 48 hours to purchase.</li>
+                <li><strong>Converted:</strong> User successfully purchased after being notified.</li>
+                <li><strong>Expired:</strong> User did not purchase within the 48-hour window.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <Footer client:load />
+
+    <!-- Confirmation Modal -->
+    <div id="confirm-modal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden">
+      <div class="bg-white rounded-2xl p-8 max-w-md mx-4">
+        <h3 class="text-xl font-bold text-[#0C2044] mb-2" id="confirm-title">Confirm Action</h3>
+        <p class="text-gray-600 mb-6" id="confirm-message"></p>
+        <div class="flex gap-3">
+          <button
+            id="confirm-cancel-btn"
+            class="flex-1 px-4 py-2 bg-gray-100 text-gray-700 font-semibold rounded-lg hover:bg-gray-200 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            id="confirm-action-btn"
+            class="flex-1 px-4 py-2 bg-[#0B52AC] text-white font-semibold rounded-lg hover:bg-[#0C2044] transition-colors"
+          >
+            Confirm
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const confirmModal = document.getElementById('confirm-modal');
+      const confirmTitle = document.getElementById('confirm-title');
+      const confirmMessage = document.getElementById('confirm-message');
+      const confirmCancelBtn = document.getElementById('confirm-cancel-btn');
+      const confirmActionBtn = document.getElementById('confirm-action-btn');
+
+      let pendingAction = null;
+
+      function showConfirm(title, message, action) {
+        confirmTitle.textContent = title;
+        confirmMessage.textContent = message;
+        pendingAction = action;
+        confirmModal.classList.remove('hidden');
+      }
+
+      confirmCancelBtn?.addEventListener('click', () => {
+        confirmModal.classList.add('hidden');
+        pendingAction = null;
+      });
+
+      confirmActionBtn?.addEventListener('click', async () => {
+        if (pendingAction) {
+          await pendingAction();
+        }
+        confirmModal.classList.add('hidden');
+        pendingAction = null;
+      });
+
+      // Notify button handlers
+      document.querySelectorAll('.notify-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const { waitlistId, ticketTypeId, email } = e.target.dataset;
+          showConfirm(
+            'Notify User',
+            `Send notification email to ${email}? They will have 48 hours to complete their purchase.`,
+            async () => {
+              e.target.disabled = true;
+              e.target.textContent = 'Sending...';
+
+              try {
+                const response = await fetch('/api/admin/waitlist/notify', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ waitlistId, ticketTypeId })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                  window.location.reload();
+                } else {
+                  alert(result.error || 'Failed to notify user');
+                }
+              } catch (err) {
+                console.error('Notify error:', err);
+                alert('Failed to notify user');
+              }
+
+              e.target.disabled = false;
+              e.target.textContent = 'Notify';
+            }
+          );
+        });
+      });
+
+      // Cancel button handlers
+      document.querySelectorAll('.cancel-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const { waitlistId } = e.target.dataset;
+          showConfirm(
+            'Cancel Entry',
+            'Are you sure you want to cancel this waitlist entry? This action cannot be undone.',
+            async () => {
+              try {
+                const response = await fetch('/api/admin/waitlist/cancel', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ waitlistId })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                  window.location.reload();
+                } else {
+                  alert(result.error || 'Failed to cancel entry');
+                }
+              } catch (err) {
+                console.error('Cancel error:', err);
+                alert('Failed to cancel entry');
+              }
+            }
+          );
+        });
+      });
+
+      // Resend button handlers
+      document.querySelectorAll('.resend-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          const { waitlistId, email } = e.target.dataset;
+          e.target.disabled = true;
+          e.target.textContent = 'Sending...';
+
+          try {
+            const response = await fetch('/api/admin/waitlist/resend', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ waitlistId })
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+              alert(`Notification resent to ${email}`);
+            } else {
+              alert(result.error || 'Failed to resend notification');
+            }
+          } catch (err) {
+            console.error('Resend error:', err);
+            alert('Failed to resend notification');
+          }
+
+          e.target.disabled = false;
+          e.target.textContent = 'Resend';
+        });
+      });
+    </script>
+  </body>
+</html>

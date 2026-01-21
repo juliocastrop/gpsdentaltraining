@@ -1454,3 +1454,316 @@ export async function getOrCreateUserByEmail(email: string, name?: string) {
   if (error) throw error;
   return newUser;
 }
+
+// ============================================
+// ADMIN QUERIES
+// ============================================
+
+/**
+ * Get all events for admin (including unpublished)
+ */
+export async function getAllEventsAdmin() {
+  const { data, error } = await supabaseAdmin
+    .from('events')
+    .select('*')
+    .order('start_date', { ascending: false });
+
+  if (error) throw error;
+  return data || [];
+}
+
+/**
+ * Get upcoming events for attendance management
+ */
+export async function getUpcomingEventsForAttendance() {
+  const now = new Date().toISOString();
+  const { data, error } = await supabaseAdmin
+    .from('events')
+    .select('*')
+    .gte('end_date', now)
+    .eq('status', 'published')
+    .order('start_date', { ascending: true });
+
+  if (error) throw error;
+  return data || [];
+}
+
+/**
+ * Get tickets for an event (for attendance list)
+ */
+export async function getEventTicketsForAttendance(eventId: string) {
+  const { data, error } = await supabaseAdmin
+    .from('tickets')
+    .select(`
+      *,
+      ticket_type:ticket_types(*),
+      user:users(id, email, first_name, last_name),
+      attendance:attendance(*)
+    `)
+    .eq('event_id', eventId)
+    .in('status', ['valid', 'used'])
+    .order('attendee_name', { ascending: true });
+
+  if (error) throw error;
+  return data || [];
+}
+
+/**
+ * Check in an attendee
+ */
+export async function checkInAttendee(ticketId: string, checkedInBy: string, method: 'qr_scan' | 'manual' | 'search' = 'manual') {
+  // Get ticket info
+  const { data: ticket, error: ticketError } = await supabaseAdmin
+    .from('tickets')
+    .select('*, event:events(*)')
+    .eq('id', ticketId)
+    .single();
+
+  if (ticketError) throw ticketError;
+  if (!ticket) throw new Error('Ticket not found');
+  if (ticket.status === 'used') throw new Error('Ticket already used');
+  if (ticket.status === 'cancelled') throw new Error('Ticket is cancelled');
+
+  // Create attendance record
+  const { data: attendance, error: attendanceError } = await supabaseAdmin
+    .from('attendance')
+    .insert({
+      ticket_id: ticketId,
+      event_id: ticket.event_id,
+      user_id: ticket.user_id,
+      checked_in_by: checkedInBy,
+      check_in_method: method,
+    })
+    .select()
+    .single();
+
+  if (attendanceError) throw attendanceError;
+
+  // Update ticket status
+  await supabaseAdmin
+    .from('tickets')
+    .update({ status: 'used' })
+    .eq('id', ticketId);
+
+  // Auto-award CE credits if event has ce_credits
+  if (ticket.event?.ce_credits && ticket.event.ce_credits > 0) {
+    await supabaseAdmin
+      .from('ce_ledger')
+      .insert({
+        user_id: ticket.user_id,
+        event_id: ticket.event_id,
+        credits: ticket.event.ce_credits,
+        source: 'event_attendance',
+        transaction_type: 'earned',
+        notes: `Earned for attending ${ticket.event.title}`,
+      });
+  }
+
+  return attendance;
+}
+
+/**
+ * Get attendees who have checked in for an event
+ */
+export async function getEventCheckedInAttendees(eventId: string) {
+  const { data, error } = await supabaseAdmin
+    .from('attendance')
+    .select(`
+      *,
+      ticket:tickets(*),
+      user:users(id, email, first_name, last_name),
+      checked_in_by_user:users!attendance_checked_in_by_fkey(id, email, first_name, last_name)
+    `)
+    .eq('event_id', eventId)
+    .order('checked_in_at', { ascending: false });
+
+  if (error) throw error;
+  return data || [];
+}
+
+/**
+ * Get all certificates for an event (admin)
+ */
+export async function getEventCertificatesAdmin(eventId: string) {
+  const { data, error } = await supabaseAdmin
+    .from('certificates')
+    .select(`
+      *,
+      user:users(id, email, first_name, last_name),
+      event:events(id, title, start_date, ce_credits)
+    `)
+    .eq('event_id', eventId)
+    .order('generated_at', { ascending: false });
+
+  if (error) throw error;
+  return data || [];
+}
+
+/**
+ * Get attendees eligible for certificates (checked in but no certificate yet)
+ */
+export async function getEligibleForCertificates(eventId: string) {
+  // Get all attendance records for the event
+  const { data: attendees, error: attendeesError } = await supabaseAdmin
+    .from('attendance')
+    .select(`
+      *,
+      ticket:tickets(*),
+      user:users(id, email, first_name, last_name)
+    `)
+    .eq('event_id', eventId);
+
+  if (attendeesError) throw attendeesError;
+
+  // Get existing certificates for the event
+  const { data: certificates, error: certsError } = await supabaseAdmin
+    .from('certificates')
+    .select('ticket_id, user_id')
+    .eq('event_id', eventId);
+
+  if (certsError) throw certsError;
+
+  // Filter out attendees who already have certificates
+  const certifiedTicketIds = new Set((certificates || []).map(c => c.ticket_id));
+  const eligible = (attendees || []).filter(a => !certifiedTicketIds.has(a.ticket_id));
+
+  return eligible;
+}
+
+/**
+ * Generate certificate for an attendee
+ */
+export async function generateCertificate(ticketId: string, eventId: string, userId: string, attendeeName: string) {
+  // Generate unique certificate code
+  const code = `GPS-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+
+  const { data, error } = await supabaseAdmin
+    .from('certificates')
+    .insert({
+      certificate_code: code,
+      ticket_id: ticketId,
+      event_id: eventId,
+      user_id: userId,
+      attendee_name: attendeeName,
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Get waitlist entries for an event (admin)
+ */
+export async function getEventWaitlistAdmin(eventId: string) {
+  const { data, error } = await supabaseAdmin
+    .from('waitlist')
+    .select(`
+      *,
+      ticket_type:ticket_types(id, name, price),
+      event:events(id, title, start_date)
+    `)
+    .eq('event_id', eventId)
+    .order('position', { ascending: true });
+
+  if (error) throw error;
+  return data || [];
+}
+
+/**
+ * Get all waitlist entries (admin)
+ */
+export async function getAllWaitlistAdmin() {
+  const { data, error } = await supabaseAdmin
+    .from('waitlist')
+    .select(`
+      *,
+      ticket_type:ticket_types(id, name, price),
+      event:events(id, title, start_date)
+    `)
+    .in('status', ['waiting', 'notified'])
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return data || [];
+}
+
+/**
+ * Notify next person in waitlist
+ */
+export async function notifyNextInWaitlist(ticketTypeId: string) {
+  const next = await getNextInWaitlist(ticketTypeId);
+  if (!next) return null;
+
+  const expiresAt = new Date();
+  expiresAt.setHours(expiresAt.getHours() + 48);
+
+  const { data, error } = await supabaseAdmin
+    .from('waitlist')
+    .update({
+      status: 'notified',
+      notified_at: new Date().toISOString(),
+      expires_at: expiresAt.toISOString(),
+    })
+    .eq('id', next.id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Cancel waitlist entry
+ */
+export async function cancelWaitlistEntry(waitlistId: string) {
+  const { error } = await supabaseAdmin
+    .from('waitlist')
+    .update({ status: 'cancelled' })
+    .eq('id', waitlistId);
+
+  if (error) throw error;
+}
+
+/**
+ * Get admin stats for dashboard
+ */
+export async function getAdminDashboardStats() {
+  const now = new Date().toISOString();
+
+  // Upcoming events count
+  const { count: upcomingEvents } = await supabaseAdmin
+    .from('events')
+    .select('*', { count: 'exact', head: true })
+    .gte('start_date', now)
+    .eq('status', 'published');
+
+  // Total tickets sold (valid + used)
+  const { count: ticketsSold } = await supabaseAdmin
+    .from('tickets')
+    .select('*', { count: 'exact', head: true })
+    .in('status', ['valid', 'used']);
+
+  // Waitlist entries
+  const { count: waitlistCount } = await supabaseAdmin
+    .from('waitlist')
+    .select('*', { count: 'exact', head: true })
+    .in('status', ['waiting', 'notified']);
+
+  // Certificates generated this month
+  const startOfMonth = new Date();
+  startOfMonth.setDate(1);
+  startOfMonth.setHours(0, 0, 0, 0);
+  const { count: certificatesThisMonth } = await supabaseAdmin
+    .from('certificates')
+    .select('*', { count: 'exact', head: true })
+    .gte('generated_at', startOfMonth.toISOString());
+
+  return {
+    upcomingEvents: upcomingEvents || 0,
+    ticketsSold: ticketsSold || 0,
+    waitlistCount: waitlistCount || 0,
+    certificatesThisMonth: certificatesThisMonth || 0,
+  };
+}
