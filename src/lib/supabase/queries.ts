@@ -15,6 +15,8 @@ import type {
   CELedger,
   Waitlist,
   Certificate,
+  CertificateTemplate,
+  CertificateTemplateType,
   Seminar,
   SeminarSession,
   SeminarRegistration,
@@ -363,28 +365,6 @@ export async function createOrder(orderData: InsertOrder) {
   return data as Order;
 }
 
-export async function getOrderById(id: string) {
-  const { data, error } = await supabaseAdmin
-    .from('orders')
-    .select('*')
-    .eq('id', id)
-    .single();
-
-  if (error) throw error;
-  return data as Order;
-}
-
-export async function getOrderByStripeSession(sessionId: string) {
-  const { data, error } = await supabaseAdmin
-    .from('orders')
-    .select('*')
-    .eq('stripe_session_id', sessionId)
-    .single();
-
-  if (error) throw error;
-  return data as Order;
-}
-
 export async function updateOrderStatus(
   orderId: string,
   status: string,
@@ -409,17 +389,6 @@ export async function updateOrderStatus(
   return data as Order;
 }
 
-export async function getUserOrders(userId: string) {
-  const { data, error } = await supabaseAdmin
-    .from('orders')
-    .select('*')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false });
-
-  if (error) throw error;
-  return data as Order[];
-}
-
 // ============================================================
 // TICKETS
 // ============================================================
@@ -433,28 +402,6 @@ export async function createTicket(ticketData: InsertTicket) {
 
   if (error) throw error;
   return data as Ticket;
-}
-
-export async function getTicketByCode(code: string) {
-  const { data, error } = await supabaseAdmin
-    .from('tickets')
-    .select('*, events(*), ticket_types(*)')
-    .eq('ticket_code', code)
-    .single();
-
-  if (error) throw error;
-  return data;
-}
-
-export async function getUserTickets(userId: string) {
-  const { data, error } = await supabaseAdmin
-    .from('tickets')
-    .select('*, events(*), ticket_types(*)')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false });
-
-  if (error) throw error;
-  return data;
 }
 
 export async function updateTicketStatus(ticketId: string, status: string) {
@@ -663,28 +610,6 @@ export async function createCertificate(certificateData: {
   return data as Certificate;
 }
 
-export async function getCertificateByCode(code: string) {
-  const { data, error } = await supabaseAdmin
-    .from('certificates')
-    .select('*, events(*), users(*)')
-    .eq('certificate_code', code)
-    .single();
-
-  if (error) throw error;
-  return data;
-}
-
-export async function getUserCertificates(userId: string) {
-  const { data, error } = await supabaseAdmin
-    .from('certificates')
-    .select('*, events(*)')
-    .eq('user_id', userId)
-    .order('generated_at', { ascending: false });
-
-  if (error) throw error;
-  return data;
-}
-
 export async function updateCertificatePDF(certificateId: string, pdfUrl: string) {
   const { data, error } = await supabaseAdmin
     .from('certificates')
@@ -757,17 +682,6 @@ export async function getUserSeminarRegistration(userId: string, seminarId: stri
 
   if (error) throw error;
   return data as (SeminarRegistration & { seminars: Seminar }) | null;
-}
-
-export async function getUserSeminarRegistrations(userId: string) {
-  const { data, error } = await supabaseAdmin
-    .from('seminar_registrations')
-    .select('*, seminars(*)')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false });
-
-  if (error) throw error;
-  return data;
 }
 
 // ============================================================
@@ -1409,23 +1323,6 @@ export async function getUserActiveSeminarRegistration(userId: string): Promise<
 // ============================================================
 
 /**
- * Get user by Clerk ID
- */
-export async function getUserByClerkId(clerkId: string) {
-  const { data, error } = await supabaseAdmin
-    .from('users')
-    .select('*')
-    .eq('clerk_id', clerkId)
-    .single();
-
-  if (error) {
-    if (error.code === 'PGRST116') return null;
-    throw error;
-  }
-  return data;
-}
-
-/**
  * Create or get user by email (for guest checkout)
  */
 export async function getOrCreateUserByEmail(email: string, name?: string) {
@@ -1766,4 +1663,166 @@ export async function getAdminDashboardStats() {
     waitlistCount: waitlistCount || 0,
     certificatesThisMonth: certificatesThisMonth || 0,
   };
+}
+
+// ============================================================
+// CERTIFICATE TEMPLATES
+// ============================================================
+
+/**
+ * Get all certificate templates
+ */
+export async function getCertificateTemplates() {
+  const { data, error } = await supabaseAdmin
+    .from('certificate_templates')
+    .select('*')
+    .eq('status', 'active')
+    .order('name', { ascending: true });
+
+  if (error) throw error;
+  return data as CertificateTemplate[];
+}
+
+/**
+ * Get certificate template by ID
+ */
+export async function getCertificateTemplateById(templateId: string) {
+  const { data, error } = await supabaseAdmin
+    .from('certificate_templates')
+    .select('*')
+    .eq('id', templateId)
+    .single();
+
+  if (error) {
+    if (error.code === 'PGRST116') return null;
+    throw error;
+  }
+  return data as CertificateTemplate;
+}
+
+/**
+ * Get certificate template by slug
+ */
+export async function getCertificateTemplateBySlug(slug: string) {
+  const { data, error } = await supabaseAdmin
+    .from('certificate_templates')
+    .select('*')
+    .eq('slug', slug)
+    .single();
+
+  if (error) {
+    if (error.code === 'PGRST116') return null;
+    throw error;
+  }
+  return data as CertificateTemplate;
+}
+
+/**
+ * Get default template by type
+ */
+export async function getDefaultCertificateTemplate(templateType: CertificateTemplateType) {
+  const { data, error } = await supabaseAdmin
+    .from('certificate_templates')
+    .select('*')
+    .eq('template_type', templateType)
+    .eq('is_default', true)
+    .eq('status', 'active')
+    .single();
+
+  if (error) {
+    if (error.code === 'PGRST116') return null;
+    throw error;
+  }
+  return data as CertificateTemplate;
+}
+
+/**
+ * Get templates by type
+ */
+export async function getCertificateTemplatesByType(templateType: CertificateTemplateType) {
+  const { data, error } = await supabaseAdmin
+    .from('certificate_templates')
+    .select('*')
+    .eq('template_type', templateType)
+    .eq('status', 'active')
+    .order('is_default', { ascending: false })
+    .order('name', { ascending: true });
+
+  if (error) throw error;
+  return data as CertificateTemplate[];
+}
+
+/**
+ * Create certificate template
+ */
+export async function createCertificateTemplate(templateData: Partial<CertificateTemplate>) {
+  const { data, error } = await supabaseAdmin
+    .from('certificate_templates')
+    .insert(templateData)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data as CertificateTemplate;
+}
+
+/**
+ * Update certificate template
+ */
+export async function updateCertificateTemplate(templateId: string, templateData: Partial<CertificateTemplate>) {
+  const { data, error } = await supabaseAdmin
+    .from('certificate_templates')
+    .update(templateData)
+    .eq('id', templateId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data as CertificateTemplate;
+}
+
+/**
+ * Delete certificate template (soft delete - sets to archived)
+ */
+export async function deleteCertificateTemplate(templateId: string) {
+  const { error } = await supabaseAdmin
+    .from('certificate_templates')
+    .update({ status: 'archived' })
+    .eq('id', templateId);
+
+  if (error) throw error;
+}
+
+/**
+ * Set default template (will trigger the DB trigger to unset previous default)
+ */
+export async function setDefaultCertificateTemplate(templateId: string) {
+  const { data, error } = await supabaseAdmin
+    .from('certificate_templates')
+    .update({ is_default: true })
+    .eq('id', templateId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data as CertificateTemplate;
+}
+
+/**
+ * Duplicate a template with a new name
+ */
+export async function duplicateCertificateTemplate(templateId: string, newName: string, newSlug: string) {
+  // Get the original template
+  const original = await getCertificateTemplateById(templateId);
+  if (!original) throw new Error('Template not found');
+
+  // Remove id and metadata fields, set new name/slug
+  const { id, created_at, updated_at, ...templateData } = original;
+
+  return createCertificateTemplate({
+    ...templateData,
+    name: newName,
+    slug: newSlug,
+    is_default: false, // Duplicates are never default
+  });
 }

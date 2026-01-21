@@ -227,6 +227,115 @@ export interface Certificate {
   pdf_url: string | null;
   generated_at: string;
   sent_at: string | null;
+  template_id: string | null;
+}
+
+// Certificate template types
+export type CertificateTemplateType = 'course' | 'seminar';
+export type QRCodePosition = 'bottom-left' | 'bottom-right' | 'top-left' | 'top-right';
+export type PageOrientation = 'L' | 'P';
+
+export interface CertificateTemplate {
+  id: string;
+  name: string;
+  slug: string;
+  template_type: CertificateTemplateType;
+  is_default: boolean;
+
+  // Page settings
+  page_orientation: PageOrientation;
+  page_format: string;
+
+  // Logo and branding
+  logo_url: string | null;
+  logo_width: number;
+  logo_height: number;
+
+  // Header section
+  header_title: string;
+  header_subtitle: string;
+  header_bg_color: string;
+  header_text_color: string;
+  header_title_size: number;
+  header_subtitle_size: number;
+
+  // Main content section
+  main_title: string;
+  main_subtitle: string;
+  main_title_size: number;
+  main_subtitle_size: number;
+
+  // Colors
+  primary_color: string;
+  secondary_color: string;
+  accent_color: string;
+  date_color: string;
+  code_bg_color: string;
+
+  // Attendee name styling
+  attendee_name_size: number;
+  attendee_name_color: string;
+
+  // Event/course title styling
+  event_title_size: number;
+  event_title_color: string;
+
+  // Description and labels
+  description_text: string;
+  description_size: number;
+  course_title_label: string;
+  course_method_label: string;
+  course_method_value: string;
+  location_label: string;
+  location_value: string;
+  date_label: string;
+  ce_credits_label: string;
+  code_label: string;
+  date_size: number;
+
+  // Instructor/Signature section
+  instructor_label: string;
+  instructor_name: string;
+  signature_image_url: string | null;
+  signature_width: number;
+  signature_height: number;
+  show_signature: boolean;
+
+  // PACE Section
+  show_pace: boolean;
+  pace_logo_url: string | null;
+  pace_logo_width: number;
+  pace_logo_height: number;
+  pace_text: string;
+  pace_text_size: number;
+  program_provider: string;
+
+  // QR Code section
+  enable_qr_code: boolean;
+  qr_code_position: QRCodePosition;
+  qr_code_size: number;
+  qr_code_label: string;
+  verification_url_base: string;
+
+  // Footer
+  footer_text: string | null;
+  footer_size: number;
+
+  // Seminar-specific fields
+  seminar_period_label: string;
+  seminar_sessions_label: string;
+  seminar_total_credits_label: string;
+
+  // Border and decoration
+  show_border: boolean;
+  border_color: string;
+  border_width: number;
+  border_margin: number;
+
+  // Metadata
+  status: 'active' | 'inactive' | 'archived';
+  created_at: string;
+  updated_at: string;
 }
 
 export interface SeminarAgendaItem {
