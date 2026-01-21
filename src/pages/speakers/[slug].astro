@@ -1,0 +1,296 @@
+---
+/**
+ * Speaker Detail Page - GPS Dental Training
+ * Dynamic page template for individual speaker profiles
+ */
+import PageLayout from '../../layouts/PageLayout.astro';
+import Section from '../../components/ui/Section.astro';
+import SectionHeader from '../../components/ui/SectionHeader.astro';
+import Card from '../../components/ui/Card.astro';
+import Badge from '../../components/ui/Badge.astro';
+import CTASection from '../../components/ui/CTASection.astro';
+import { getSpeakerBySlug, getTeamMemberBySlug, getSpeakerWithEvents } from '../../lib/supabase/queries';
+import { supabaseAdmin } from '../../lib/supabase/client';
+
+const { slug } = Astro.params;
+
+// Try to get from team_members first (has more data), then speakers
+let speaker: any = null;
+let events: any[] = [];
+let seminars: any[] = [];
+
+try {
+  speaker = await getTeamMemberBySlug(slug as string);
+} catch (e) {
+  // Not in team_members, try speakers
+}
+
+if (!speaker) {
+  try {
+    const speakerData = await getSpeakerWithEvents(slug as string);
+    speaker = speakerData;
+    events = speakerData.events || [];
+    seminars = speakerData.seminars || [];
+  } catch (e) {
+    // Speaker not found
+  }
+}
+
+// If still not found, use fallback data
+if (!speaker) {
+  const fallbackSpeakers: Record<string, any> = {
+    'carlos-castro': {
+      name: 'Carlos Castro',
+      slug: 'carlos-castro',
+      credentials: 'DDS, FACP',
+      title: 'Founder & Program Director',
+      role: 'Diplomate, American Board of Prosthodontics',
+      bio: `Dr. Castro is a board-certified prosthodontist with a Fellowship from Columbia University College of Dental Medicine. As founder and director of GPS Dental Training, he brings over 20 years of clinical experience in complex restorative dentistry, implant prosthodontics, and full-mouth rehabilitation. His commitment to evidence-based education has made GPS a premier destination for dental professionals seeking advanced training.
+
+Dr. Castro maintains an active clinical practice at the GPS Dental Implant Center, where he treats complex cases and provides mentorship to course participants. His approach combines traditional prosthodontic principles with cutting-edge digital workflows and regenerative techniques.`,
+      photo_url: 'https://gpsdentaltraining.com/wp-content/uploads/slider4/img-dr-carlos-castro.jpg',
+      education: ['DDS - Columbia University', 'Prosthodontics Residency - Columbia University', 'FACP - American College of Prosthodontists'],
+      certifications: ['Diplomate, American Board of Prosthodontics', 'Fellow, American College of Prosthodontists'],
+    },
+    'alessandro-cucchiaro': {
+      name: 'Alessandro Cucchiaro',
+      slug: 'alessandro-cucchiaro',
+      credentials: 'MDT',
+      title: 'European Master Dental Technician',
+      role: 'Laboratory Director',
+      bio: `Alessandro is a European-trained Master Dental Technician with international credentials in advanced prosthetic fabrication. His expertise spans CAD/CAM technology, ceramic restorations, and implant-supported prosthetics. At GPS, he leads the in-house Prostho Dental Lab and teaches hands-on laboratory techniques to clinicians and technicians.
+
+With training from prestigious European dental technology programs, Alessandro brings a unique perspective on esthetic dentistry and precision fabrication. His work has been featured in numerous dental publications, and he regularly collaborates with clinicians on complex full-mouth rehabilitation cases.`,
+      photo_url: 'https://gpsdentaltraining.com/wp-content/uploads/slider4/alessandro.png',
+      education: ['Master Dental Technology - European Academy'],
+      certifications: ['Master Dental Technician (MDT)'],
+    },
+    'david-li': {
+      name: 'David Li',
+      slug: 'david-li',
+      credentials: 'MDT',
+      title: 'International Master Dental Technician',
+      role: 'Senior Laboratory Instructor',
+      bio: `David brings international training and expertise in complex dental restorations to the GPS team. Specializing in esthetic and implant restorations, he works closely with clinicians to achieve optimal outcomes. His meticulous approach to prosthetic design has earned recognition throughout the dental community.
+
+At GPS Dental Training, David leads hands-on workshops focusing on implant prosthetics, ceramic layering techniques, and digital workflow integration. His patient-centered approach emphasizes both function and esthetics in every restoration.`,
+      photo_url: 'https://gpsdentaltraining.com/wp-content/uploads/slider4/david.png',
+      education: ['Master Dental Technology - International Program'],
+      certifications: ['Master Dental Technician (MDT)'],
+    },
+  };
+
+  speaker = fallbackSpeakers[slug as string];
+}
+
+// If speaker still not found, redirect to speakers list
+if (!speaker) {
+  return Astro.redirect('/speakers');
+}
+
+// Social links
+const socialLinks = speaker.social_links || {};
+---
+
+<PageLayout
+  title={`${speaker.name} | Speaker`}
+  description={speaker.short_bio || speaker.bio?.substring(0, 160)}
+  breadcrumbs={[
+    { label: 'Speakers', href: '/speakers' },
+    { label: speaker.name }
+  ]}
+  heroTitle={speaker.name}
+  heroTitleAccent={speaker.credentials}
+  heroDescription={speaker.title}
+  heroBadge={{ icon: 'certificate', text: speaker.role || 'Expert Instructor' }}
+>
+  <!-- Main Content -->
+  <Section bg="white" padding="lg">
+    <div class="max-w-6xl mx-auto">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-12">
+        <!-- Left Column: Photo & Quick Info -->
+        <div class="lg:col-span-1">
+          <div class="sticky top-8">
+            <!-- Photo -->
+            <div class="relative rounded-2xl overflow-hidden shadow-xl mb-6">
+              <img
+                src={speaker.photo_url}
+                alt={speaker.name}
+                class="w-full aspect-[3/4] object-cover object-top"
+              />
+              <div class="absolute top-4 left-4">
+                <Badge variant="gold" size="lg">{speaker.credentials}</Badge>
+              </div>
+            </div>
+
+            <!-- Quick Info Card -->
+            <Card variant="gray" padding="md">
+              <h3 class="text-lg font-bold text-[#13326A] mb-4">Quick Info</h3>
+
+              <div class="space-y-3">
+                <div class="flex items-start gap-3">
+                  <svg class="w-5 h-5 text-[#DDC89D] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  <div>
+                    <p class="text-sm text-[#4E6E82]">Position</p>
+                    <p class="font-semibold text-[#13326A]">{speaker.title}</p>
+                  </div>
+                </div>
+
+                {speaker.role && (
+                  <div class="flex items-start gap-3">
+                    <svg class="w-5 h-5 text-[#DDC89D] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+                    </svg>
+                    <div>
+                      <p class="text-sm text-[#4E6E82]">Specialization</p>
+                      <p class="font-semibold text-[#13326A]">{speaker.role}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <!-- Social Links -->
+              {Object.keys(socialLinks).length > 0 && (
+                <div class="mt-6 pt-6 border-t border-gray-200">
+                  <h4 class="text-sm font-semibold text-[#13326A] mb-3">Connect</h4>
+                  <div class="flex gap-3">
+                    {socialLinks.linkedin && (
+                      <a href={socialLinks.linkedin} target="_blank" rel="noopener" class="w-10 h-10 bg-[#13326A] text-white rounded-lg flex items-center justify-center hover:bg-[#0B52AC] transition-colors">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+                        </svg>
+                      </a>
+                    )}
+                    {socialLinks.twitter && (
+                      <a href={socialLinks.twitter} target="_blank" rel="noopener" class="w-10 h-10 bg-[#13326A] text-white rounded-lg flex items-center justify-center hover:bg-[#0B52AC] transition-colors">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                        </svg>
+                      </a>
+                    )}
+                    {socialLinks.website && (
+                      <a href={socialLinks.website} target="_blank" rel="noopener" class="w-10 h-10 bg-[#13326A] text-white rounded-lg flex items-center justify-center hover:bg-[#0B52AC] transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+                        </svg>
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
+            </Card>
+          </div>
+        </div>
+
+        <!-- Right Column: Bio & Details -->
+        <div class="lg:col-span-2">
+          <!-- Biography -->
+          <div class="mb-10">
+            <h2 class="text-2xl font-bold text-[#13326A] mb-6">Biography</h2>
+            <div class="prose prose-lg max-w-none text-[#4E6E82]">
+              {speaker.bio?.split('\n\n').map((paragraph: string) => (
+                <p class="mb-4 leading-relaxed">{paragraph}</p>
+              ))}
+            </div>
+          </div>
+
+          <!-- Education -->
+          {speaker.education && speaker.education.length > 0 && (
+            <div class="mb-10">
+              <h2 class="text-2xl font-bold text-[#13326A] mb-6">Education</h2>
+              <ul class="space-y-3">
+                {speaker.education.map((edu: string) => (
+                  <li class="flex items-start gap-3">
+                    <svg class="w-6 h-6 text-[#DDC89D] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l9-5-9-5-9 5 9 5z" />
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
+                    </svg>
+                    <span class="text-[#4E6E82]">{edu}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <!-- Certifications -->
+          {speaker.certifications && speaker.certifications.length > 0 && (
+            <div class="mb-10">
+              <h2 class="text-2xl font-bold text-[#13326A] mb-6">Certifications & Memberships</h2>
+              <div class="flex flex-wrap gap-3">
+                {speaker.certifications.map((cert: string) => (
+                  <Badge variant="outline" size="lg">{cert}</Badge>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <!-- Upcoming Courses -->
+          {events && events.length > 0 && (
+            <div class="mb-10">
+              <h2 class="text-2xl font-bold text-[#13326A] mb-6">Upcoming Courses</h2>
+              <div class="grid gap-4">
+                {events.slice(0, 3).map((event: any) => (
+                  <a href={`/courses/${event.slug}`} class="group">
+                    <Card variant="outline" hover padding="md">
+                      <div class="flex items-center justify-between">
+                        <div>
+                          <h3 class="font-bold text-[#13326A] group-hover:text-[#0B52AC] transition-colors">
+                            {event.title}
+                          </h3>
+                          <p class="text-sm text-[#4E6E82]">
+                            {new Date(event.start_date).toLocaleDateString('en-US', {
+                              month: 'long',
+                              day: 'numeric',
+                              year: 'numeric'
+                            })}
+                          </p>
+                        </div>
+                        <Badge variant="gold">{event.ce_credits} CE</Badge>
+                      </div>
+                    </Card>
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <!-- Seminars -->
+          {seminars && seminars.length > 0 && (
+            <div>
+              <h2 class="text-2xl font-bold text-[#13326A] mb-6">Monthly Seminars</h2>
+              <div class="grid gap-4">
+                {seminars.map((seminar: any) => (
+                  <a href={`/monthly-seminars/${seminar.slug}`} class="group">
+                    <Card variant="outline" hover padding="md">
+                      <div class="flex items-center justify-between">
+                        <div>
+                          <h3 class="font-bold text-[#13326A] group-hover:text-[#0B52AC] transition-colors">
+                            {seminar.title}
+                          </h3>
+                          <p class="text-sm text-[#4E6E82]">
+                            Role: {seminar.role || 'Moderator'}
+                          </p>
+                        </div>
+                        <Badge variant="navy">{seminar.year}</Badge>
+                      </div>
+                    </Card>
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  </Section>
+
+  <!-- CTA Section -->
+  <CTASection
+    title={`Learn from ${speaker.name.split(' ')[0]}`}
+    description="Register for our upcoming courses and seminars to learn directly from our expert instructors."
+    primaryAction={{ label: "View All Courses", href: "/courses" }}
+    secondaryAction={{ label: "Contact Us", href: "/contact" }}
+  />
+</PageLayout>

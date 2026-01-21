@@ -1,0 +1,66 @@
+---
+/**
+ * Card - Unified card component with multiple variants
+ *
+ * Usage:
+ * <Card variant="white" hover>
+ *   <content>
+ * </Card>
+ */
+interface Props {
+  /** Card style variant */
+  variant?: 'white' | 'gray' | 'navy' | 'outline';
+  /** Enable hover effects */
+  hover?: boolean;
+  /** Padding size */
+  padding?: 'sm' | 'md' | 'lg';
+  /** Additional classes */
+  class?: string;
+  /** Link href (makes entire card clickable) */
+  href?: string;
+}
+
+const {
+  variant = 'white',
+  hover = false,
+  padding = 'md',
+  class: className = '',
+  href,
+} = Astro.props;
+
+const variantClasses = {
+  white: 'bg-white border border-gray-100 shadow-sm text-[#13326A]',
+  gray: 'bg-[#F8F9FA] border border-gray-100 text-[#13326A]',
+  navy: 'bg-gradient-to-br from-[#0C2044] via-[#13326A] to-[#173D84] text-white [&_h1]:text-white [&_h2]:text-white [&_h3]:text-white [&_h4]:text-white',
+  outline: 'bg-white border-2 border-gray-100 text-[#13326A]',
+};
+
+const hoverClasses = {
+  white: 'hover:shadow-xl hover:border-gray-200',
+  gray: 'hover:shadow-lg hover:bg-white',
+  navy: 'hover:shadow-2xl',
+  outline: 'hover:shadow-xl hover:border-[#DDC89D]',
+};
+
+const paddingClasses = {
+  sm: 'p-4 md:p-6',
+  md: 'p-6 md:p-8',
+  lg: 'p-8 md:p-10',
+};
+
+const Tag = href ? 'a' : 'div';
+---
+
+<Tag
+  href={href}
+  class:list={[
+    'rounded-2xl overflow-hidden transition-all duration-300',
+    variantClasses[variant],
+    hover && hoverClasses[variant],
+    paddingClasses[padding],
+    href && 'block cursor-pointer',
+    className,
+  ]}
+>
+  <slot />
+</Tag>

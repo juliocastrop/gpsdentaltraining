@@ -1,0 +1,291 @@
+---
+/**
+ * CourseCard - Premium Course Card Component
+ * Enhanced visual design for course listings
+ */
+import type { EventWithSpeakers, Speaker } from '../../types/database';
+
+interface Props {
+  event: EventWithSpeakers;
+  featured?: boolean;
+}
+
+const { event, featured = false } = Astro.props;
+
+function formatDate(dateStr: string): string {
+  const date = new Date(dateStr);
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+function formatDateRange(startDate: string, endDate: string | null): string {
+  const start = new Date(startDate);
+  if (!endDate) {
+    return formatDate(startDate);
+  }
+  const end = new Date(endDate);
+
+  if (start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()) {
+    return `${start.toLocaleDateString('en-US', { month: 'long' })} ${start.getDate()}-${end.getDate()}, ${start.getFullYear()}`;
+  }
+
+  return `${formatDate(startDate)} - ${formatDate(endDate)}`;
+}
+
+function getDayCount(startDate: string, endDate: string | null): number {
+  if (!endDate) return 1;
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const diffTime = Math.abs(end.getTime() - start.getTime());
+  return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+}
+
+function isUpcoming(dateStr: string): boolean {
+  return new Date(dateStr) > new Date();
+}
+
+const dateDisplay = formatDateRange(event.start_date, event.end_date);
+const eventUrl = `/courses/${event.slug}`;
+const dayCount = getDayCount(event.start_date, event.end_date);
+const upcoming = isUpcoming(event.start_date);
+const cleanTitle = event.title.replace('[TEST] ', '');
+const speakers = event.speakers || [];
+---
+
+{featured ? (
+  <!-- Featured Course Card - Large Horizontal -->
+  <article class="group relative bg-white rounded-2xl shadow-xl overflow-hidden hover:shadow-2xl transition-all duration-500">
+    <a href={eventUrl} class="block">
+      <div class="grid grid-cols-1 lg:grid-cols-2">
+        <!-- Image Section -->
+        <div class="relative h-64 lg:h-full min-h-[350px] overflow-hidden">
+          <img
+            src={event.featured_image_url || '/placeholder-course.jpg'}
+            alt={cleanTitle}
+            class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+            loading="eager"
+          />
+          <!-- Gradient Overlay -->
+          <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent lg:bg-gradient-to-r lg:from-transparent lg:via-transparent lg:to-white/20"></div>
+
+          <!-- Date Badge - Top Left -->
+          <div class="absolute top-4 left-4 bg-white/95 backdrop-blur-sm rounded-xl px-4 py-2 shadow-lg">
+            <p class="text-xs text-gray-500 uppercase tracking-wide font-medium">Upcoming Course</p>
+            <p class="text-[#0C2044] font-bold">{dateDisplay}</p>
+          </div>
+
+          <!-- CE Credits Badge - Top Right -->
+          {event.ce_credits > 0 && (
+            <div class="absolute top-4 right-4 bg-gradient-to-r from-[#DDC89D] to-[#BFAC87] text-[#0C2044] px-4 py-2 rounded-full font-bold text-sm shadow-lg flex items-center gap-2">
+              <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3z"/>
+              </svg>
+              {event.ce_credits} CE Credits
+            </div>
+          )}
+        </div>
+
+        <!-- Content Section -->
+        <div class="p-8 lg:p-10 flex flex-col justify-center">
+          <!-- Category Tag -->
+          <div class="flex items-center gap-3 mb-4">
+            <span class="text-xs font-bold uppercase tracking-wider text-[#0B52AC] bg-[#0B52AC]/10 px-3 py-1 rounded-full">
+              {dayCount} Day{dayCount > 1 ? 's' : ''} Course
+            </span>
+            {upcoming && (
+              <span class="text-xs font-bold uppercase tracking-wider text-green-600 bg-green-100 px-3 py-1 rounded-full">
+                Enrolling Now
+              </span>
+            )}
+          </div>
+
+          <h2 class="text-2xl lg:text-3xl font-bold text-[#0C2044] mb-4 group-hover:text-[#0B52AC] transition-colors leading-tight">
+            {cleanTitle}
+          </h2>
+
+          {event.excerpt && (
+            <p class="text-gray-600 mb-6 line-clamp-3 leading-relaxed">
+              {event.excerpt}
+            </p>
+          )}
+
+          <!-- Speakers -->
+          {speakers.length > 0 && (
+            <div class="mb-6">
+              <p class="text-xs text-gray-500 uppercase tracking-wide mb-2 font-medium">
+                {speakers.length > 1 ? 'Instructors' : 'Instructor'}
+              </p>
+              <div class="flex items-center gap-3">
+                <div class="flex -space-x-3">
+                  {speakers.slice(0, 3).map((speaker: Speaker) => (
+                    speaker.photo_url ? (
+                      <img
+                        src={speaker.photo_url}
+                        alt={speaker.name.replace('[TEST] ', '')}
+                        class="w-10 h-10 rounded-full border-2 border-white shadow-md object-cover"
+                      />
+                    ) : (
+                      <div class="w-10 h-10 rounded-full border-2 border-white shadow-md bg-gradient-to-br from-[#173D84] to-[#0C2044] flex items-center justify-center text-white text-sm font-bold">
+                        {speaker.name.replace('[TEST] ', '').split(' ').map((n: string) => n[0]).join('').substring(0, 2)}
+                      </div>
+                    )
+                  ))}
+                </div>
+                <div>
+                  <p class="font-semibold text-[#0C2044] text-sm">
+                    {speakers.map((s: Speaker) => s.name.replace('[TEST] ', '')).join(', ')}
+                  </p>
+                  {speakers[0]?.title && (
+                    <p class="text-xs text-gray-500">{speakers[0].title}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <!-- Meta Info -->
+          <div class="flex flex-wrap items-center gap-4 mb-6 text-sm text-gray-600">
+            {event.venue && (
+              <div class="flex items-center gap-1.5">
+                <svg class="w-4 h-4 text-[#DDC89D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+                </svg>
+                <span>{event.venue}</span>
+              </div>
+            )}
+            {event.capacity && (
+              <div class="flex items-center gap-1.5">
+                <svg class="w-4 h-4 text-[#DDC89D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+                </svg>
+                <span>Limited to {event.capacity}</span>
+              </div>
+            )}
+          </div>
+
+          <!-- CTA -->
+          <div class="flex items-center gap-4">
+            <span class="inline-flex items-center gap-2 text-[#0B52AC] font-bold group-hover:gap-3 transition-all">
+              View Course Details
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/>
+              </svg>
+            </span>
+          </div>
+        </div>
+      </div>
+    </a>
+  </article>
+) : (
+  <!-- Standard Course Card -->
+  <article class="group bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-xl transition-all duration-300 hover:-translate-y-1 flex flex-col h-full">
+    <a href={eventUrl} class="flex flex-col h-full">
+      <!-- Image -->
+      <div class="relative overflow-hidden aspect-[16/10]">
+        <img
+          src={event.featured_image_url || '/placeholder-course.jpg'}
+          alt={cleanTitle}
+          class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+          loading="lazy"
+        />
+        <!-- Gradient Overlay -->
+        <div class="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+
+        <!-- Date Badge -->
+        <div class="absolute bottom-4 left-4 bg-white/95 backdrop-blur-sm rounded-lg px-3 py-1.5 shadow-md">
+          <p class="text-[#0C2044] font-semibold text-sm">{dateDisplay}</p>
+        </div>
+
+        <!-- CE Credits Badge -->
+        {event.ce_credits > 0 && (
+          <div class="absolute top-4 right-4 bg-gradient-to-r from-[#DDC89D] to-[#BFAC87] text-[#0C2044] px-3 py-1 rounded-full font-bold text-xs shadow-md">
+            {event.ce_credits} CE
+          </div>
+        )}
+
+        <!-- Upcoming Badge -->
+        {upcoming && (
+          <div class="absolute top-4 left-4 bg-green-500 text-white px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wide">
+            Upcoming
+          </div>
+        )}
+      </div>
+
+      <!-- Content -->
+      <div class="p-5 flex-1 flex flex-col">
+        <!-- Tags -->
+        <div class="flex items-center gap-2 mb-3">
+          <span class="text-[10px] font-bold uppercase tracking-wider text-[#0B52AC] bg-[#0B52AC]/10 px-2 py-0.5 rounded">
+            {dayCount} Day{dayCount > 1 ? 's' : ''}
+          </span>
+          {event.venue && (
+            <span class="text-[10px] font-medium text-gray-500 flex items-center gap-1">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+              </svg>
+              {event.venue}
+            </span>
+          )}
+        </div>
+
+        <!-- Title -->
+        <h3 class="text-lg font-bold text-[#0C2044] mb-2 line-clamp-2 group-hover:text-[#0B52AC] transition-colors leading-snug">
+          {cleanTitle}
+        </h3>
+
+        <!-- Speakers -->
+        {speakers.length > 0 && (
+          <div class="flex items-center gap-2 mb-3">
+            <div class="flex -space-x-2">
+              {speakers.slice(0, 2).map((speaker: Speaker) => (
+                speaker.photo_url ? (
+                  <img
+                    src={speaker.photo_url}
+                    alt={speaker.name.replace('[TEST] ', '')}
+                    class="w-7 h-7 rounded-full border-2 border-white shadow object-cover"
+                  />
+                ) : (
+                  <div class="w-7 h-7 rounded-full border-2 border-white shadow bg-gradient-to-br from-[#173D84] to-[#0C2044] flex items-center justify-center text-white text-[10px] font-bold">
+                    {speaker.name.replace('[TEST] ', '').split(' ').map((n: string) => n[0]).join('').substring(0, 2)}
+                  </div>
+                )
+              ))}
+            </div>
+            <p class="text-xs text-gray-600 truncate">
+              {speakers.length === 1
+                ? speakers[0].name.replace('[TEST] ', '')
+                : `${speakers[0].name.replace('[TEST] ', '')} +${speakers.length - 1}`
+              }
+            </p>
+          </div>
+        )}
+
+        <!-- Excerpt -->
+        {event.excerpt && (
+          <p class="text-sm text-gray-600 line-clamp-2 mb-4 flex-1">
+            {event.excerpt}
+          </p>
+        )}
+
+        <!-- Footer -->
+        <div class="flex items-center justify-between mt-auto pt-4 border-t border-gray-100">
+          <span class="text-[#0B52AC] font-semibold text-sm group-hover:underline flex items-center gap-1">
+            Learn More
+            <svg class="w-4 h-4 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+            </svg>
+          </span>
+          {event.capacity && (
+            <span class="text-xs text-gray-400">
+              {event.capacity} seats
+            </span>
+          )}
+        </div>
+      </div>
+    </a>
+  </article>
+)}

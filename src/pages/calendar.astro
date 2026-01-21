@@ -1,0 +1,286 @@
+---
+/**
+ * Calendar Page - GPS Dental Training
+ * Interactive calendar showing all courses and seminar sessions
+ */
+import PageLayout from '../layouts/PageLayout.astro';
+import Section from '../components/ui/Section.astro';
+import Card from '../components/ui/Card.astro';
+import Badge from '../components/ui/Badge.astro';
+import CTASection from '../components/ui/CTASection.astro';
+import { getCalendarEvents, getPublishedEvents, getActiveSeminars, getSeminarSessions } from '../lib/supabase/queries';
+
+// Fetch all events and seminars
+let events: any[] = [];
+let seminars: any[] = [];
+
+try {
+  events = await getPublishedEvents() || [];
+} catch (e) {
+  events = [];
+}
+
+try {
+  const activeSeminars = await getActiveSeminars() || [];
+  // Fetch sessions for each seminar
+  for (const seminar of activeSeminars) {
+    const sessions = await getSeminarSessions(seminar.id) || [];
+    seminars.push({ ...seminar, sessions });
+  }
+} catch (e) {
+  seminars = [];
+}
+
+// Combine all events into calendar format
+const calendarEvents: any[] = [];
+
+// Add courses/events
+events.forEach(event => {
+  calendarEvents.push({
+    id: event.id,
+    title: event.title,
+    date: event.start_date,
+    endDate: event.end_date,
+    type: 'course',
+    slug: event.slug,
+    href: `/courses/${event.slug}`,
+    ceCredits: event.ce_credits,
+    venue: event.venue,
+    color: '#0B52AC', // Blue for courses
+  });
+});
+
+// Add seminar sessions
+seminars.forEach(seminar => {
+  (seminar.sessions || []).forEach((session: any) => {
+    calendarEvents.push({
+      id: `${seminar.id}-${session.id}`,
+      title: `Monthly Seminar: ${session.topic || `Session ${session.session_number}`}`,
+      date: session.session_date,
+      type: 'seminar',
+      slug: seminar.slug,
+      href: `/monthly-seminars/${seminar.slug}`,
+      ceCredits: 2,
+      sessionNumber: session.session_number,
+      color: '#DDC89D', // Gold for seminars
+    });
+  });
+});
+
+// Sort by date
+calendarEvents.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+// Get upcoming events (next 6 months)
+const now = new Date();
+const sixMonthsLater = new Date();
+sixMonthsLater.setMonth(sixMonthsLater.getMonth() + 6);
+
+const upcomingEvents = calendarEvents.filter(event => {
+  const eventDate = new Date(event.date);
+  return eventDate >= now && eventDate <= sixMonthsLater;
+});
+
+// Group by month
+const eventsByMonth: Record<string, any[]> = {};
+upcomingEvents.forEach(event => {
+  const date = new Date(event.date);
+  const monthKey = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  if (!eventsByMonth[monthKey]) {
+    eventsByMonth[monthKey] = [];
+  }
+  eventsByMonth[monthKey].push(event);
+});
+
+// Stats
+const heroStats = [
+  { value: String(events.length), label: 'Courses Scheduled' },
+  { value: String(seminars.reduce((acc, s) => acc + (s.sessions?.length || 0), 0)), label: 'Seminar Sessions', accent: true },
+  { value: String(upcomingEvents.length), label: 'Upcoming Events' },
+];
+
+// Helper function to format date
+function formatDate(dateStr: string) {
+  return new Date(dateStr).toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+function formatDateRange(startStr: string, endStr?: string) {
+  const start = new Date(startStr);
+  if (!endStr || startStr === endStr) {
+    return start.toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  }
+  const end = new Date(endStr);
+  if (start.getMonth() === end.getMonth()) {
+    return `${start.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })} - ${end.getDate()}, ${end.getFullYear()}`;
+  }
+  return `${start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+}
+---
+
+<PageLayout
+  title="Calendar"
+  description="View the complete schedule of GPS Dental Training courses, seminars, and educational events."
+  breadcrumbs={[{ label: 'Calendar' }]}
+  heroTitle="Event"
+  heroTitleAccent="Calendar"
+  heroDescription="Browse our complete schedule of courses and monthly seminars. Plan your continuing education journey with GPS Dental Training."
+  heroBadge={{ icon: 'calendar', text: 'Upcoming Events' }}
+  heroStats={heroStats}
+>
+  <!-- Legend -->
+  <Section bg="white" padding="md">
+    <div class="max-w-6xl mx-auto">
+      <div class="flex flex-wrap items-center justify-center gap-6 mb-8">
+        <div class="flex items-center gap-2">
+          <div class="w-4 h-4 rounded-full bg-[#0B52AC]"></div>
+          <span class="text-[#4E6E82] font-medium">Courses</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="w-4 h-4 rounded-full bg-[#DDC89D]"></div>
+          <span class="text-[#4E6E82] font-medium">Monthly Seminars</span>
+        </div>
+      </div>
+    </div>
+  </Section>
+
+  <!-- Calendar List View -->
+  {Object.keys(eventsByMonth).length > 0 ? (
+    Object.entries(eventsByMonth).map(([month, monthEvents]) => (
+      <Section bg="white" padding="sm">
+        <div class="max-w-4xl mx-auto">
+          <h2 class="text-2xl font-bold text-[#13326A] mb-6 pb-3 border-b border-gray-200">
+            {month}
+          </h2>
+
+          <div class="space-y-4">
+            {monthEvents.map((event: any) => (
+              <a href={event.href} class="group block">
+                <div class="flex items-stretch bg-white border border-gray-100 rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300">
+                  <!-- Date Badge -->
+                  <div class={`flex-shrink-0 w-24 p-4 flex flex-col items-center justify-center text-white ${event.type === 'course' ? 'bg-[#0B52AC]' : 'bg-[#DDC89D]'}`}>
+                    <span class={`text-3xl font-bold ${event.type === 'seminar' ? 'text-[#0C2044]' : ''}`}>
+                      {new Date(event.date).getDate()}
+                    </span>
+                    <span class={`text-sm font-medium ${event.type === 'seminar' ? 'text-[#0C2044]' : ''}`}>
+                      {new Date(event.date).toLocaleDateString('en-US', { weekday: 'short' })}
+                    </span>
+                  </div>
+
+                  <!-- Event Details -->
+                  <div class="flex-grow p-4 flex items-center justify-between">
+                    <div>
+                      <div class="flex items-center gap-2 mb-1">
+                        <Badge variant={event.type === 'course' ? 'navy' : 'gold'} size="sm">
+                          {event.type === 'course' ? 'Course' : 'Seminar'}
+                        </Badge>
+                        {event.ceCredits && (
+                          <Badge variant="outline" size="sm">{event.ceCredits} CE</Badge>
+                        )}
+                      </div>
+                      <h3 class="font-bold text-[#13326A] group-hover:text-[#0B52AC] transition-colors">
+                        {event.title}
+                      </h3>
+                      <p class="text-sm text-[#4E6E82]">
+                        {event.endDate && event.date !== event.endDate
+                          ? formatDateRange(event.date, event.endDate)
+                          : formatDate(event.date)}
+                        {event.venue && ` • ${event.venue}`}
+                      </p>
+                    </div>
+
+                    <svg class="w-6 h-6 text-[#4E6E82] group-hover:text-[#0B52AC] group-hover:translate-x-1 transition-all" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
+                </div>
+              </a>
+            ))}
+          </div>
+        </div>
+      </Section>
+    ))
+  ) : (
+    <Section bg="white" padding="lg">
+      <div class="max-w-2xl mx-auto text-center">
+        <div class="w-20 h-20 bg-[#F8F9FA] rounded-full flex items-center justify-center mx-auto mb-6">
+          <svg class="w-10 h-10 text-[#4E6E82]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+        </div>
+        <h2 class="text-2xl font-bold text-[#13326A] mb-4">No Upcoming Events</h2>
+        <p class="text-[#4E6E82] mb-8">
+          Check back soon for our upcoming courses and seminars, or contact us to learn about future programs.
+        </p>
+        <a
+          href="/contact"
+          class="inline-flex items-center gap-2 bg-[#0B52AC] text-white px-6 py-3 rounded-xl font-bold hover:bg-[#13326A] transition-all"
+        >
+          Contact Us
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+          </svg>
+        </a>
+      </div>
+    </Section>
+  )}
+
+  <!-- Quick Links -->
+  <Section bg="gray" padding="lg">
+    <div class="max-w-4xl mx-auto">
+      <h2 class="text-2xl font-bold text-[#13326A] text-center mb-8">Browse by Category</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <a href="/courses" class="group">
+          <Card variant="white" hover padding="lg">
+            <div class="flex items-center gap-6">
+              <div class="w-16 h-16 bg-[#0B52AC] rounded-xl flex items-center justify-center flex-shrink-0">
+                <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                </svg>
+              </div>
+              <div>
+                <h3 class="text-xl font-bold text-[#13326A] group-hover:text-[#0B52AC] transition-colors">
+                  All Courses
+                </h3>
+                <p class="text-[#4E6E82]">Browse our complete catalog of dental training courses</p>
+              </div>
+            </div>
+          </Card>
+        </a>
+
+        <a href="/monthly-seminars" class="group">
+          <Card variant="white" hover padding="lg">
+            <div class="flex items-center gap-6">
+              <div class="w-16 h-16 bg-[#DDC89D] rounded-xl flex items-center justify-center flex-shrink-0">
+                <svg class="w-8 h-8 text-[#0C2044]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+              </div>
+              <div>
+                <h3 class="text-xl font-bold text-[#13326A] group-hover:text-[#0B52AC] transition-colors">
+                  Monthly Seminars
+                </h3>
+                <p class="text-[#4E6E82]">Join our 10-session study club program</p>
+              </div>
+            </div>
+          </Card>
+        </a>
+      </div>
+    </div>
+  </Section>
+
+  <!-- CTA Section -->
+  <CTASection
+    title="Ready to Start Learning?"
+    description="Register for our upcoming courses and seminars to advance your dental practice."
+    primaryAction={{ label: "Browse Courses", href: "/courses" }}
+    secondaryAction={{ label: "Contact Us", href: "/contact" }}
+  />
+</PageLayout>

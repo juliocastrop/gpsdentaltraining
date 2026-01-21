@@ -1,0 +1,272 @@
+---
+/**
+ * CE Credits Page - GPS Dental Training
+ * Shows user's CE credit history and total
+ */
+import '../../styles/global.css';
+import Navbar from '../../components/layout/Navbar';
+import Footer from '../../components/layout/Footer';
+import { supabaseAdmin } from '../../lib/supabase/client';
+
+// Check if Clerk is configured
+const clerkConfigured = !!process.env.PUBLIC_CLERK_PUBLISHABLE_KEY;
+
+// Get user from Clerk if available
+let userId: string | null = null;
+try {
+  if (clerkConfigured && Astro.locals.auth) {
+    const auth = Astro.locals.auth();
+    userId = auth?.userId || null;
+  }
+} catch {
+  // Clerk not available
+}
+
+// Redirect if Clerk is configured but user is not logged in
+if (clerkConfigured && !userId) {
+  return Astro.redirect('/sign-in?redirect_url=/account/credits');
+}
+
+// Initialize variables
+let user: any = null;
+let credits: any[] = [];
+let earnedCredits = 0;
+let adjustedCredits = 0;
+let revokedCredits = 0;
+let totalCredits = 0;
+
+// Fetch data if user is logged in
+if (userId) {
+  // Get user from Supabase
+  const { data: userData } = await supabaseAdmin
+    .from('users')
+    .select('*')
+    .eq('clerk_id', userId)
+    .single();
+  user = userData;
+
+  if (user) {
+    // Get CE credits history
+    const { data: creditsData } = await supabaseAdmin
+      .from('ce_ledger')
+      .select(`
+        id,
+        credits,
+        source,
+        transaction_type,
+        notes,
+        awarded_at,
+        event:events (
+          id,
+          title,
+          slug,
+          start_date
+        )
+      `)
+      .eq('user_id', user.id)
+      .order('awarded_at', { ascending: false });
+    credits = creditsData || [];
+
+    // Calculate totals
+    earnedCredits = credits.filter(c => c.transaction_type === 'earned').reduce((sum, c) => sum + c.credits, 0);
+    adjustedCredits = credits.filter(c => c.transaction_type === 'adjustment').reduce((sum, c) => sum + c.credits, 0);
+    revokedCredits = credits.filter(c => c.transaction_type === 'revoked').reduce((sum, c) => sum + Math.abs(c.credits), 0);
+    totalCredits = earnedCredits + adjustedCredits - revokedCredits;
+  }
+}
+
+function formatDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+function getSourceLabel(source: string): string {
+  switch (source) {
+    case 'course_attendance':
+      return 'Course Attendance';
+    case 'seminar_session':
+      return 'Seminar Session';
+    case 'manual':
+      return 'Manual Award';
+    default:
+      return source;
+  }
+}
+
+function getTransactionColor(type: string): string {
+  switch (type) {
+    case 'earned':
+      return 'text-green-600 bg-green-50';
+    case 'adjustment':
+      return 'text-blue-600 bg-blue-50';
+    case 'revoked':
+      return 'text-red-600 bg-red-50';
+    default:
+      return 'text-gray-600 bg-gray-50';
+  }
+}
+---
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+
+    <title>CE Credits | GPS Dental Training</title>
+  </head>
+
+  <body class="min-h-screen flex flex-col bg-[#F8F9FA]">
+    <Navbar
+      logo="/logo.svg"
+      transparent={false}
+      client:load
+    />
+
+    <!-- Spacer for fixed navbar -->
+    <div class="h-20"></div>
+
+    <main class="flex-1 py-8 lg:py-12">
+      <div class="container mx-auto px-4 lg:px-8 max-w-5xl">
+        <!-- Breadcrumb -->
+        <nav class="flex items-center gap-2 text-sm text-gray-500 mb-6">
+          <a href="/account" class="hover:text-[#0B52AC] transition-colors">My Account</a>
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+          </svg>
+          <span class="text-[#0C2044] font-medium">CE Credits</span>
+        </nav>
+
+        <!-- Header -->
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-8">
+          <div>
+            <h1 class="text-3xl font-bold text-[#0C2044] mb-2">CE Credits</h1>
+            <p class="text-gray-600">
+              Track your continuing education credits from GPS courses and seminars.
+            </p>
+          </div>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <div class="bg-gradient-to-br from-[#DDC89D] to-[#BFAC87] rounded-xl p-6 text-[#0C2044]">
+            <p class="text-3xl font-bold">{totalCredits}</p>
+            <p class="text-sm font-medium opacity-80">Total Credits</p>
+          </div>
+          <div class="bg-white rounded-xl shadow-sm p-6">
+            <p class="text-3xl font-bold text-green-600">{earnedCredits}</p>
+            <p class="text-sm text-gray-500">Earned</p>
+          </div>
+          <div class="bg-white rounded-xl shadow-sm p-6">
+            <p class="text-3xl font-bold text-blue-600">{adjustedCredits > 0 ? `+${adjustedCredits}` : adjustedCredits}</p>
+            <p class="text-sm text-gray-500">Adjustments</p>
+          </div>
+          <div class="bg-white rounded-xl shadow-sm p-6">
+            <p class="text-3xl font-bold text-red-600">{revokedCredits > 0 ? `-${revokedCredits}` : 0}</p>
+            <p class="text-sm text-gray-500">Revoked</p>
+          </div>
+        </div>
+
+        <!-- Credits History -->
+        <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+          <div class="p-6 border-b border-gray-100">
+            <h2 class="text-xl font-bold text-[#0C2044]">Credit History</h2>
+          </div>
+
+          {credits && credits.length > 0 ? (
+            <div class="divide-y divide-gray-100">
+              {credits.map((credit: any) => (
+                <div class="p-6 hover:bg-gray-50 transition-colors">
+                  <div class="flex items-start justify-between gap-4">
+                    <div class="flex-1">
+                      <div class="flex items-center gap-3 mb-2">
+                        <span class={`px-2 py-1 rounded text-xs font-semibold capitalize ${getTransactionColor(credit.transaction_type)}`}>
+                          {credit.transaction_type}
+                        </span>
+                        <span class="text-sm text-gray-500">
+                          {getSourceLabel(credit.source)}
+                        </span>
+                      </div>
+                      {credit.event ? (
+                        <a href={`/courses/${credit.event.slug}`} class="font-semibold text-[#0C2044] hover:text-[#0B52AC] transition-colors">
+                          {credit.event.title?.replace('[TEST] ', '')}
+                        </a>
+                      ) : (
+                        <p class="font-semibold text-[#0C2044]">
+                          {credit.notes || 'Manual Credit'}
+                        </p>
+                      )}
+                      <p class="text-sm text-gray-500 mt-1">
+                        {formatDate(credit.awarded_at)}
+                      </p>
+                    </div>
+                    <div class="text-right">
+                      <p class={`text-2xl font-bold ${
+                        credit.transaction_type === 'revoked' ? 'text-red-600' :
+                        credit.transaction_type === 'adjustment' ? 'text-blue-600' :
+                        'text-green-600'
+                      }`}>
+                        {credit.transaction_type === 'revoked' ? '-' : '+'}{Math.abs(credit.credits)}
+                      </p>
+                      <p class="text-sm text-gray-500">CE Credits</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div class="p-12 text-center">
+              <div class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-10 h-10 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3z"/>
+                </svg>
+              </div>
+              <h3 class="text-xl font-bold text-[#0C2044] mb-2">No CE Credits Yet</h3>
+              <p class="text-gray-500 mb-6 max-w-md mx-auto">
+                Attend courses and seminars to earn continuing education credits that will appear here.
+              </p>
+              <a
+                href="/courses"
+                class="inline-flex items-center gap-2 px-6 py-3 bg-[#0B52AC] text-white font-semibold rounded-lg hover:bg-[#0C2044] transition-colors"
+              >
+                Browse Courses
+              </a>
+            </div>
+          )}
+        </div>
+
+        <!-- PACE Info -->
+        <div class="mt-8 bg-gradient-to-r from-[#0C2044] to-[#173D84] rounded-xl p-6 lg:p-8 text-white">
+          <div class="flex flex-col lg:flex-row items-center gap-6">
+            <div class="w-20 h-20 bg-white/10 rounded-xl flex items-center justify-center flex-shrink-0">
+              <svg class="w-10 h-10 text-[#DDC89D]" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3z"/>
+                <path d="M9.394 11.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84l7 3a1 1 0 00.788 0l7-3a1 1 0 000-1.838l-7-3z"/>
+              </svg>
+            </div>
+            <div>
+              <h3 class="text-xl font-bold mb-2">PACE Approved Provider</h3>
+              <p class="text-white/80">
+                GPS Dental Training is a nationally approved PACE program provider for FAGD/MAGD credits.
+                All CE credits earned through our courses and seminars are recognized for dental license renewal.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <Footer client:load />
+  </body>
+</html>

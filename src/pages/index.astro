@@ -1,16 +1,595 @@
 ---
+/**
+ * Homepage - GPS Dental Training
+ * Main landing page with hero, courses, testimonials, and more
+ */
+import PageLayout from '../layouts/PageLayout.astro';
+import Section from '../components/ui/Section.astro';
+import SectionHeader from '../components/ui/SectionHeader.astro';
+import Card from '../components/ui/Card.astro';
+import Badge from '../components/ui/Badge.astro';
+import IconBox from '../components/ui/IconBox.astro';
+import CTASection from '../components/ui/CTASection.astro';
+import HeroSlider from '../components/home/HeroSlider';
+import CourseCarousel from '../components/home/CourseCarousel';
+import EventCalendar from '../components/home/EventCalendar';
+import {
+  getUpcomingEvents,
+  getFeaturedEvent,
+  getFeaturedSpeakers,
+  getFeaturedTestimonials,
+  getFeaturedPartners,
+  getActiveSeminars,
+  getActiveHeroSlides,
+} from '../lib/supabase/queries';
 
+// Fetch all data
+let upcomingEvents: any[] = [];
+let featuredEvent: any = null;
+let speakers: any[] = [];
+let testimonials: any[] = [];
+let partners: any[] = [];
+let seminars: any[] = [];
+let heroSlidesFromDB: any[] = [];
+
+try {
+  [upcomingEvents, featuredEvent, speakers, testimonials, partners, seminars, heroSlidesFromDB] = await Promise.all([
+    getUpcomingEvents(6),
+    getFeaturedEvent(),
+    getFeaturedSpeakers(4),
+    getFeaturedTestimonials(3),
+    getFeaturedPartners(6),
+    getActiveSeminars(),
+    getActiveHeroSlides(),
+  ]);
+} catch (error) {
+  console.error('Error fetching homepage data:', error);
+}
+
+// Transform events for carousel
+const upcomingCoursesFromDB = upcomingEvents.map(event => ({
+  id: event.id,
+  title: event.title.replace('[TEST] ', ''),
+  slug: event.slug,
+  description: event.description?.substring(0, 150).replace(/<[^>]*>/g, '') || undefined,
+  startDate: event.start_date,
+  endDate: event.end_date || undefined,
+  venue: event.venue || undefined,
+  ceCredits: event.ce_credits,
+  featuredImage: event.featured_image_url || undefined,
+  price: 1299, // Default - would come from ticket_types
+}));
+
+// Fallback courses if database is empty
+const defaultCourses = [
+  {
+    id: '1',
+    title: 'Comprehensive PRF Protocols',
+    slug: 'comprehensive-prf-protocols-handling-clinical-integration',
+    description: 'Master advanced platelet-rich fibrin techniques with hands-on training from the inventor of PRF technology.',
+    startDate: '2025-05-01',
+    venue: 'GPS Training Center, Duluth GA',
+    ceCredits: 15,
+    featuredImage: 'https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=800&h=600&fit=crop',
+    price: 1499,
+  },
+  {
+    id: '2',
+    title: 'Implant Surgery Fundamentals',
+    slug: 'implant-surgery-fundamentals',
+    description: 'A comprehensive introduction to dental implant surgery for general dentists looking to expand their practice.',
+    startDate: '2025-06-15',
+    venue: 'GPS Training Center, Duluth GA',
+    ceCredits: 12,
+    featuredImage: 'https://images.unsplash.com/photo-1606811841689-23dfddce3e95?w=800&h=600&fit=crop',
+    price: 1299,
+  },
+  {
+    id: '3',
+    title: 'Digital Dentistry Workshop',
+    slug: 'digital-dentistry-workshop',
+    description: 'Hands-on training in CAD/CAM technology, digital scanning, and computer-guided implant planning.',
+    startDate: '2025-07-20',
+    venue: 'GPS Training Center, Duluth GA',
+    ceCredits: 8,
+    featuredImage: 'https://images.unsplash.com/photo-1576091160550-2173dba999ef?w=800&h=600&fit=crop',
+    price: 999,
+  },
+];
+
+const coursesForCarousel = upcomingCoursesFromDB.length > 0 ? upcomingCoursesFromDB : defaultCourses;
+
+// Transform hero slides from database or use fallback
+const heroSlides = heroSlidesFromDB.length > 0
+  ? heroSlidesFromDB.map(slide => ({
+      id: slide.id,
+      title: slide.title,
+      subtitle: slide.subtitle || '',
+      description: slide.description || '',
+      imageUrl: slide.image_url || 'https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=1600&h=900&fit=crop',
+      ctaText: slide.cta_text || 'Learn More',
+      ctaLink: slide.cta_link || '/courses',
+      ctaSecondaryText: slide.cta_secondary_text,
+      ctaSecondaryLink: slide.cta_secondary_link,
+      ceCredits: slide.ce_credits,
+      badge: slide.badge_text,
+    }))
+  : [
+      // Fallback slides if database is empty
+      {
+        id: '1',
+        title: 'Advanced Dental Training',
+        subtitle: 'World-Class Education',
+        description: 'Master cutting-edge techniques with hands-on training from industry-leading experts in implantology, prosthodontics, and regenerative dentistry.',
+        imageUrl: 'https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=1600&h=900&fit=crop',
+        ctaText: 'View Courses',
+        ctaLink: '/courses',
+        ceCredits: 15,
+      },
+      {
+        id: '2',
+        title: 'GPS Monthly Seminars',
+        subtitle: '2025 Program Now Open',
+        description: 'Join our 10-session cycle of literature review, case discussions, and treatment planning seminars. Earn up to 20 CE credits.',
+        imageUrl: 'https://images.unsplash.com/photo-1576091160550-2173dba999ef?w=1600&h=900&fit=crop',
+        ctaText: 'Enroll Today',
+        ctaLink: '/monthly-seminars',
+        ceCredits: 20,
+      },
+    ];
+
+// Fallback data
+const defaultSpeakers = [
+  {
+    id: '1',
+    name: 'Dr. Carlos Castro',
+    slug: 'carlos-castro',
+    title: 'DDS, FACP',
+    short_bio: 'Board-certified prosthodontist with 20+ years of clinical experience.',
+    photo_url: 'https://gpsdentaltraining.com/wp-content/uploads/slider4/img-dr-carlos-castro.jpg',
+  },
+  {
+    id: '2',
+    name: 'Alessandro Cucchiaro',
+    slug: 'alessandro-cucchiaro',
+    title: 'MDT',
+    short_bio: 'European-trained Master Dental Technician specializing in CAD/CAM technology.',
+    photo_url: 'https://gpsdentaltraining.com/wp-content/uploads/slider4/alessandro.png',
+  },
+];
+
+const defaultTestimonials = [
+  {
+    id: '1',
+    quote: 'The PRF course completely transformed my practice. Dr. Choukroun\'s hands-on approach and the detailed protocols have allowed me to offer advanced regenerative procedures with confidence.',
+    author_name: 'Dr. Sarah Mitchell',
+    author_title: 'DDS, Periodontist',
+    author_location: 'Atlanta, GA',
+    rating: 5,
+  },
+  {
+    id: '2',
+    quote: 'GPS Monthly Seminars have been invaluable for my continuing education. The case discussions and literature reviews keep me at the forefront of implant dentistry.',
+    author_name: 'Dr. Michael Rodriguez',
+    author_title: 'DMD, Prosthodontist',
+    author_location: 'Miami, FL',
+    rating: 5,
+  },
+  {
+    id: '3',
+    quote: 'The level of expertise and the quality of hands-on training at GPS is unmatched. I\'ve attended courses worldwide, and GPS consistently delivers exceptional education.',
+    author_name: 'Dr. Jennifer Park',
+    author_title: 'DDS, Oral Surgeon',
+    author_location: 'Houston, TX',
+    rating: 5,
+  },
+];
+
+const defaultPartners = [
+  { id: 'pace', name: 'PACE', logo_url: '/pace-logo.png', website_url: 'https://www.agd.org/pace' },
+  { id: 'agd', name: 'AGD', logo_url: '/agd-logo.png', website_url: 'https://www.agd.org' },
+];
+
+const displaySpeakers = speakers.length > 0 ? speakers : defaultSpeakers;
+const displayTestimonials = testimonials.length > 0 ? testimonials : defaultTestimonials;
+const displayPartners = partners.length > 0 ? partners : defaultPartners;
+
+// Stats
+const stats = [
+  { value: '500+', label: 'Courses Delivered' },
+  { value: '5,000+', label: 'Dentists Trained', accent: true },
+  { value: '50,000+', label: 'CE Credits Awarded' },
+  { value: '20+', label: 'Years Experience' },
+];
+
+// Why Choose GPS features
+const features = [
+  {
+    icon: 'academic',
+    title: 'Expert Faculty',
+    description: 'Learn from world-renowned specialists and pioneers in dental education.',
+  },
+  {
+    icon: 'tools',
+    title: 'Hands-On Training',
+    description: 'Practical, skills-based learning with state-of-the-art equipment.',
+  },
+  {
+    icon: 'certificate',
+    title: 'CE Credits',
+    description: 'AGD PACE-approved courses for FAGD/MAGD credit requirements.',
+  },
+  {
+    icon: 'users',
+    title: 'Small Class Sizes',
+    description: 'Personalized attention with limited enrollment for optimal learning.',
+  },
+];
 ---
 
-<html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<meta name="viewport" content="width=device-width" />
-		<meta name="generator" content={Astro.generator} />
-		<title>Astro</title>
-	</head>
-	<body>
-		<h1>Astro</h1>
-	</body>
-</html>
+<PageLayout
+  title="GPS Dental Training - Advanced Continuing Education"
+  description="World-class continuing education for dental professionals. Hands-on training, expert faculty, and PACE-approved CE credits."
+  showHero={false}
+  transparentNavbar={true}
+>
+  <!-- Hero Slider -->
+  <HeroSlider
+    slides={heroSlides}
+    autoplaySpeed={6000}
+    showNavigation={true}
+    showPagination={true}
+    client:load
+  />
+
+  <!-- Stats Bar -->
+  <Section bg="navy" padding="md">
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-8 max-w-5xl mx-auto">
+      {stats.map((stat) => (
+        <div class="text-center">
+          <p class={`text-4xl md:text-5xl font-bold mb-2 ${stat.accent ? 'text-[#DDC89D]' : 'text-white'}`}>
+            {stat.value}
+          </p>
+          <p class="text-white/70 text-sm md:text-base">{stat.label}</p>
+        </div>
+      ))}
+    </div>
+  </Section>
+
+  <!-- Upcoming Courses Carousel -->
+  <Section bg="white" padding="lg">
+    <SectionHeader
+      badge="Don't Miss Out"
+      title="Upcoming Courses"
+      description="Secure your spot in our most popular dental training programs."
+    />
+    <CourseCarousel
+      courses={coursesForCarousel}
+      autoplay={true}
+      autoplaySpeed={5000}
+      slidesToShow={3}
+      hideHeader={true}
+      hideViewAll={true}
+      hideBackground={true}
+      client:load
+    />
+    <div class="text-center mt-10">
+      <a
+        href="/courses"
+        class="inline-flex items-center gap-2 text-[#0B52AC] font-semibold hover:gap-3 transition-all"
+      >
+        View All Courses
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+        </svg>
+      </a>
+    </div>
+  </Section>
+
+  <!-- Why Choose GPS -->
+  <Section bg="gray" padding="lg">
+    <SectionHeader
+      badge="Why GPS"
+      title="Excellence in Dental Education"
+      description="What sets GPS Dental Training apart from other continuing education providers."
+    />
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 max-w-6xl mx-auto">
+      {features.map((feature) => (
+        <Card variant="white" hover padding="lg" class="text-center">
+          <IconBox icon={feature.icon} size="lg" variant="gold" class="mx-auto mb-6" />
+          <h3 class="text-xl font-bold text-[#13326A] mb-3">{feature.title}</h3>
+          <p class="text-[#4E6E82]">{feature.description}</p>
+        </Card>
+      ))}
+    </div>
+  </Section>
+
+  <!-- Monthly Seminars CTA -->
+  {seminars.length > 0 && (
+    <Section bg="gradient" padding="lg">
+      <div class="max-w-4xl mx-auto text-center">
+        <Badge variant="gold" size="lg" class="mb-6">
+          <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z"/>
+          </svg>
+          10-Session Program
+        </Badge>
+        <h2 class="text-3xl md:text-4xl lg:text-5xl font-bold text-white mb-6 font-heading">
+          GPS Monthly Seminars {seminars[0].year}
+        </h2>
+        <p class="text-xl text-white/80 mb-8 max-w-2xl mx-auto">
+          Join our collaborative learning environment with monthly sessions covering literature review, case presentations, and treatment planning. Earn up to 20 CE credits.
+        </p>
+        <div class="flex flex-wrap justify-center gap-4">
+          <a
+            href={`/monthly-seminars/${seminars[0].slug}`}
+            class="inline-flex items-center gap-2 bg-[#DDC89D] text-[#0C2044] px-8 py-4 rounded-xl font-bold text-lg hover:bg-white transition-colors"
+          >
+            Learn More & Enroll
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+            </svg>
+          </a>
+          <a
+            href="/calendar"
+            class="inline-flex items-center gap-2 bg-white/10 text-white px-8 py-4 rounded-xl font-bold text-lg hover:bg-white/20 transition-colors border border-white/30"
+          >
+            View Schedule
+          </a>
+        </div>
+      </div>
+    </Section>
+  )}
+
+  <!-- Featured Speakers -->
+  <Section bg="white" padding="lg">
+    <SectionHeader
+      badge="Expert Faculty"
+      title="Learn from the Best"
+      description="Our instructors are internationally recognized leaders in dental education."
+    />
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 max-w-6xl mx-auto">
+      {displaySpeakers.slice(0, 4).map((speaker: any) => (
+        <a href={`/speakers/${speaker.slug}`} class="group">
+          <Card variant="white" hover padding="none" class="overflow-hidden">
+            <div class="relative h-64 overflow-hidden">
+              {speaker.photo_url ? (
+                <img
+                  src={speaker.photo_url}
+                  alt={speaker.name}
+                  class="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500"
+                />
+              ) : (
+                <div class="w-full h-full bg-gradient-to-br from-[#173D84] to-[#0C2044] flex items-center justify-center">
+                  <span class="text-4xl font-bold text-white">
+                    {speaker.name.split(' ').map((n: string) => n[0]).join('').substring(0, 2)}
+                  </span>
+                </div>
+              )}
+              <div class="absolute inset-0 bg-gradient-to-t from-[#0C2044]/80 via-transparent to-transparent"></div>
+              <div class="absolute bottom-0 left-0 right-0 p-4">
+                <Badge variant="gold" size="sm">{speaker.title || speaker.credentials}</Badge>
+              </div>
+            </div>
+            <div class="p-5">
+              <h3 class="text-lg font-bold text-[#13326A] group-hover:text-[#0B52AC] transition-colors mb-1">
+                {speaker.name.replace('[TEST] ', '')}
+              </h3>
+              <p class="text-sm text-[#4E6E82] line-clamp-2">
+                {speaker.short_bio || speaker.bio?.substring(0, 100)}
+              </p>
+            </div>
+          </Card>
+        </a>
+      ))}
+    </div>
+    <div class="text-center mt-10">
+      <a
+        href="/speakers"
+        class="inline-flex items-center gap-2 text-[#0B52AC] font-semibold hover:gap-3 transition-all"
+      >
+        Meet All Instructors
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+        </svg>
+      </a>
+    </div>
+  </Section>
+
+  <!-- Event Calendar -->
+  <Section bg="gray" padding="lg">
+    <SectionHeader
+      badge="Plan Ahead"
+      title="Course Calendar"
+      description="Browse our complete schedule of courses and seminars."
+    />
+    <div class="max-w-6xl mx-auto">
+      <EventCalendar
+        showSidebar={true}
+        eventTypeFilter="all"
+        client:load
+      />
+    </div>
+    <div class="text-center mt-10">
+      <a
+        href="/calendar"
+        class="inline-flex items-center gap-2 text-[#0B52AC] font-semibold hover:gap-3 transition-all"
+      >
+        View Full Calendar
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+        </svg>
+      </a>
+    </div>
+  </Section>
+
+  <!-- Testimonials -->
+  <Section bg="white" padding="lg">
+    <SectionHeader
+      badge="Success Stories"
+      title="What Our Students Say"
+      description="Hear from dental professionals who have transformed their practice with GPS training."
+    />
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+      {displayTestimonials.slice(0, 3).map((testimonial: any) => (
+        <Card variant="outline" padding="lg" class="relative pt-8">
+          <!-- Quote Icon -->
+          <div class="absolute -top-5 left-6">
+            <div class="w-12 h-12 bg-[#DDC89D] rounded-full flex items-center justify-center shadow-lg">
+              <svg class="w-6 h-6 text-[#0C2044]" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M4.583 17.321C3.553 16.227 3 15 3 13.011c0-3.5 2.457-6.637 6.03-8.188l.893 1.378c-3.335 1.804-3.987 4.145-4.247 5.621.537-.278 1.24-.375 1.929-.311 1.804.167 3.226 1.648 3.226 3.489a3.5 3.5 0 01-3.5 3.5c-1.073 0-2.099-.49-2.748-1.179zm10 0C13.553 16.227 13 15 13 13.011c0-3.5 2.457-6.637 6.03-8.188l.893 1.378c-3.335 1.804-3.987 4.145-4.247 5.621.537-.278 1.24-.375 1.929-.311 1.804.167 3.226 1.648 3.226 3.489a3.5 3.5 0 01-3.5 3.5c-1.073 0-2.099-.49-2.748-1.179z"/>
+              </svg>
+            </div>
+          </div>
+
+          <!-- Stars -->
+          <div class="flex gap-1 mb-4">
+            {Array.from({ length: testimonial.rating || 5 }).map(() => (
+              <svg class="w-5 h-5 text-[#DDC89D]" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+              </svg>
+            ))}
+          </div>
+
+          <blockquote class="text-[#4E6E82] mb-6 italic leading-relaxed">
+            "{testimonial.quote || testimonial.content}"
+          </blockquote>
+
+          <div class="flex items-center gap-4 pt-4 border-t border-gray-100">
+            {testimonial.author_photo_url ? (
+              <img
+                src={testimonial.author_photo_url}
+                alt={testimonial.author_name}
+                class="w-12 h-12 rounded-full object-cover"
+              />
+            ) : (
+              <div class="w-12 h-12 bg-gradient-to-br from-[#173D84] to-[#0C2044] rounded-full flex items-center justify-center">
+                <span class="text-white font-bold text-sm">
+                  {testimonial.author_name.split(' ').map((n: string) => n[0]).join('').substring(0, 2)}
+                </span>
+              </div>
+            )}
+            <div>
+              <p class="font-bold text-[#13326A]">{testimonial.author_name}</p>
+              <p class="text-sm text-[#4E6E82]">
+                {testimonial.author_title}
+                {testimonial.author_location && ` • ${testimonial.author_location}`}
+              </p>
+            </div>
+          </div>
+        </Card>
+      ))}
+    </div>
+  </Section>
+
+  <!-- Partners / Accreditation -->
+  <Section bg="gray" padding="md">
+    <div class="max-w-5xl mx-auto">
+      <p class="text-center text-[#4E6E82] text-sm uppercase tracking-wide mb-8">
+        Accreditation & Partners
+      </p>
+      <div class="flex flex-wrap items-center justify-center gap-8 lg:gap-12">
+        {displayPartners.map((partner: any) => (
+          <a
+            href={partner.website_url || '#'}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="grayscale hover:grayscale-0 opacity-60 hover:opacity-100 transition-all"
+          >
+            {partner.logo_url ? (
+              <img
+                src={partner.logo_url}
+                alt={partner.name}
+                class="h-12 md:h-16 w-auto object-contain"
+              />
+            ) : (
+              <div class="h-12 md:h-16 px-6 bg-[#0C2044] rounded-lg flex items-center justify-center">
+                <span class="text-white font-bold">{partner.name}</span>
+              </div>
+            )}
+          </a>
+        ))}
+      </div>
+      <p class="text-center text-[#4E6E82] text-xs mt-6">
+        GPS Dental Training is an AGD PACE-approved provider. PACE approval does not imply acceptance by a state or provincial board of dentistry.
+      </p>
+    </div>
+  </Section>
+
+  <!-- Contact Section -->
+  <Section bg="white" padding="lg">
+    <SectionHeader
+      badge="Get In Touch"
+      title="Visit Our Training Center"
+      description="Located in Duluth, Georgia - easily accessible from Atlanta."
+    />
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 max-w-6xl mx-auto items-stretch">
+      <!-- Map -->
+      <Card variant="white" padding="none" class="overflow-hidden min-h-[400px]">
+        <iframe
+          src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3309.4714559159!2d-84.1536!3d33.9606!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zMzPCsDU3JzM4LjIiTiA4NMKwMDknMTMuMCJX!5e0!3m2!1sen!2sus!4v1234567890"
+          width="100%"
+          height="100%"
+          style="border:0; min-height: 400px;"
+          allowfullscreen
+          loading="lazy"
+          referrerpolicy="no-referrer-when-downgrade"
+          title="GPS Training Center Location"
+        ></iframe>
+      </Card>
+
+      <!-- Contact Info -->
+      <Card variant="white" padding="lg">
+        <h3 class="text-2xl font-bold text-[#13326A] mb-8">Contact Information</h3>
+
+        <div class="space-y-6">
+          <div class="flex items-start gap-4 p-4 bg-[#F8F9FA] rounded-xl hover:bg-[#DDC89D]/10 transition-colors">
+            <IconBox icon="location" size="md" variant="primary" />
+            <div>
+              <h4 class="font-semibold text-[#13326A] mb-1">Training Center</h4>
+              <p class="text-[#4E6E82]">6320 Sugarloaf Parkway<br/>Duluth, GA 30097</p>
+            </div>
+          </div>
+
+          <div class="flex items-start gap-4 p-4 bg-[#F8F9FA] rounded-xl hover:bg-[#DDC89D]/10 transition-colors">
+            <IconBox icon="mail" size="md" variant="primary" />
+            <div>
+              <h4 class="font-semibold text-[#13326A] mb-1">Email</h4>
+              <a href="mailto:gpsdentaltraining@gaprostho.com" class="text-[#0B52AC] hover:text-[#13326A] transition-colors font-medium">
+                gpsdentaltraining@gaprostho.com
+              </a>
+            </div>
+          </div>
+
+          <div class="flex items-start gap-4 p-4 bg-[#F8F9FA] rounded-xl hover:bg-[#DDC89D]/10 transition-colors">
+            <IconBox icon="clock" size="md" variant="primary" />
+            <div>
+              <h4 class="font-semibold text-[#13326A] mb-1">Office Hours</h4>
+              <p class="text-[#4E6E82]">Monday - Friday: 9:00 AM - 5:00 PM EST</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-8 pt-6 border-t border-gray-200">
+          <a
+            href="/contact"
+            class="inline-flex items-center justify-center w-full gap-2 bg-[#0C2044] hover:bg-[#173D84] text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all"
+          >
+            Send Us a Message
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+            </svg>
+          </a>
+        </div>
+      </Card>
+    </div>
+  </Section>
+
+  <!-- Final CTA -->
+  <CTASection
+    title="Ready to Advance Your Career?"
+    description="Join thousands of dental professionals who have elevated their practice with GPS Dental Training."
+    primaryAction={{ label: "Browse All Courses", href: "/courses" }}
+    secondaryAction={{ label: "Contact Us", href: "/contact" }}
+  />
+</PageLayout>

@@ -1,0 +1,274 @@
+---
+/**
+ * Speakers Listing Page - GPS Dental Training
+ * Displays all speakers/instructors with filtering options
+ */
+import PageLayout from '../../layouts/PageLayout.astro';
+import Section from '../../components/ui/Section.astro';
+import SectionHeader from '../../components/ui/SectionHeader.astro';
+import Card from '../../components/ui/Card.astro';
+import Badge from '../../components/ui/Badge.astro';
+import CTASection from '../../components/ui/CTASection.astro';
+import { getSpeakers, getTeamMembers } from '../../lib/supabase/queries';
+
+// Fetch speakers from database
+let speakers: any[] = [];
+let teamMembers: any[] = [];
+
+try {
+  speakers = await getSpeakers() || [];
+} catch (e) {
+  speakers = [];
+}
+
+try {
+  teamMembers = await getTeamMembers() || [];
+} catch (e) {
+  teamMembers = [];
+}
+
+// Combine and deduplicate (prefer team_members data as it has more fields)
+const teamSlugs = new Set(teamMembers.map((m: any) => m.slug));
+const combinedInstructors = [
+  ...teamMembers,
+  ...speakers.filter((s: any) => !teamSlugs.has(s.slug))
+];
+
+// Default data if no database entries
+const defaultInstructors = [
+  {
+    id: '1',
+    name: 'Carlos Castro',
+    slug: 'carlos-castro',
+    credentials: 'DDS, FACP',
+    title: 'Founder & Program Director',
+    role: 'founder',
+    short_bio: 'Board-certified prosthodontist with 20+ years of clinical experience in complex restorative dentistry and implant prosthodontics.',
+    photo_url: 'https://gpsdentaltraining.com/wp-content/uploads/slider4/img-dr-carlos-castro.jpg',
+  },
+  {
+    id: '2',
+    name: 'Alessandro Cucchiaro',
+    slug: 'alessandro-cucchiaro',
+    credentials: 'MDT',
+    title: 'European Master Dental Technician',
+    role: 'lab_director',
+    short_bio: 'European-trained Master Dental Technician specializing in CAD/CAM technology and advanced prosthetic fabrication.',
+    photo_url: 'https://gpsdentaltraining.com/wp-content/uploads/slider4/alessandro.png',
+  },
+  {
+    id: '3',
+    name: 'David Li',
+    slug: 'david-li',
+    credentials: 'MDT',
+    title: 'International Master Dental Technician',
+    role: 'senior_instructor',
+    short_bio: 'International Master Dental Technician specializing in esthetic and implant restorations.',
+    photo_url: 'https://gpsdentaltraining.com/wp-content/uploads/slider4/david.png',
+  },
+];
+
+const instructors = combinedInstructors.length > 0 ? combinedInstructors : defaultInstructors;
+
+// Group by role
+const founders = instructors.filter((i: any) => i.role === 'founder');
+const labTeam = instructors.filter((i: any) => ['lab_director', 'senior_instructor'].includes(i.role));
+const guestSpeakers = instructors.filter((i: any) => !['founder', 'lab_director', 'senior_instructor'].includes(i.role));
+
+// Stats
+const heroStats = [
+  { value: String(instructors.length), label: 'Expert Instructors' },
+  { value: '50+', label: 'Years Combined Experience', accent: true },
+  { value: '100+', label: 'Courses Taught' },
+];
+---
+
+<PageLayout
+  title="Speakers & Instructors"
+  description="Meet our world-class team of dental educators, prosthodontists, and master dental technicians at GPS Dental Training."
+  breadcrumbs={[{ label: 'Speakers' }]}
+  heroTitle="Meet Our"
+  heroTitleAccent="Expert Instructors"
+  heroDescription="Our team of internationally recognized dental professionals brings decades of combined experience in prosthodontics, implantology, and dental laboratory technology."
+  heroBadge={{ icon: 'users', text: 'World-Class Faculty' }}
+  heroStats={heroStats}
+>
+  <!-- Leadership -->
+  {founders.length > 0 && (
+    <Section bg="white" padding="lg">
+      <SectionHeader
+        badge="Leadership"
+        title="Program Directors"
+        description="The visionaries behind GPS Dental Training's comprehensive educational programs."
+      />
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-5xl mx-auto">
+        {founders.map((instructor: any) => (
+          <a href={`/speakers/${instructor.slug}`} class="group">
+            <Card variant="white" hover padding="md" class="flex flex-col md:flex-row gap-6">
+              <div class="flex-shrink-0">
+                <div class="relative w-full md:w-48 h-64 md:h-full rounded-xl overflow-hidden">
+                  <img
+                    src={instructor.photo_url}
+                    alt={instructor.name}
+                    class="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500"
+                  />
+                  <div class="absolute top-3 left-3">
+                    <Badge variant="gold">{instructor.credentials}</Badge>
+                  </div>
+                </div>
+              </div>
+              <div class="flex-grow flex flex-col justify-center">
+                <h3 class="text-2xl font-bold text-[#13326A] mb-1 group-hover:text-[#0B52AC] transition-colors">
+                  {instructor.name}
+                </h3>
+                <p class="text-[#DDC89D] font-semibold mb-3">{instructor.title}</p>
+                <p class="text-[#4E6E82] leading-relaxed mb-4">
+                  {instructor.short_bio || instructor.bio?.substring(0, 200) + '...'}
+                </p>
+                <span class="inline-flex items-center gap-2 text-[#0B52AC] font-semibold">
+                  View Full Profile
+                  <svg class="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                  </svg>
+                </span>
+              </div>
+            </Card>
+          </a>
+        ))}
+      </div>
+    </Section>
+  )}
+
+  <!-- Laboratory Team -->
+  {labTeam.length > 0 && (
+    <Section bg="gray" padding="lg">
+      <SectionHeader
+        badge="Laboratory Excellence"
+        title="Master Dental Technicians"
+        description="Our in-house laboratory team brings world-class expertise in prosthetic fabrication and digital workflows."
+      />
+
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
+        {labTeam.map((instructor: any) => (
+          <a href={`/speakers/${instructor.slug}`} class="group">
+            <div class="bg-white rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-100">
+              <div class="relative h-72 overflow-hidden">
+                <img
+                  src={instructor.photo_url}
+                  alt={instructor.name}
+                  class="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500"
+                />
+                <div class="absolute inset-0 bg-gradient-to-t from-[#0C2044]/80 via-transparent to-transparent"></div>
+                <div class="absolute top-4 left-4">
+                  <Badge variant="gold">{instructor.credentials}</Badge>
+                </div>
+                <div class="absolute bottom-0 left-0 right-0 p-6">
+                  <h3 class="text-xl font-bold text-white">{instructor.name}</h3>
+                  <p class="text-[#DDC89D] font-semibold">{instructor.title}</p>
+                </div>
+              </div>
+              <div class="p-6">
+                <p class="text-[#4E6E82] leading-relaxed text-sm mb-4 line-clamp-3">
+                  {instructor.short_bio || instructor.bio?.substring(0, 150) + '...'}
+                </p>
+                <span class="inline-flex items-center gap-2 text-[#0B52AC] font-semibold text-sm">
+                  View Profile
+                  <svg class="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                  </svg>
+                </span>
+              </div>
+            </div>
+          </a>
+        ))}
+      </div>
+    </Section>
+  )}
+
+  <!-- Guest Speakers -->
+  {guestSpeakers.length > 0 && (
+    <Section bg="white" padding="lg">
+      <SectionHeader
+        badge="Guest Faculty"
+        title="Visiting Speakers"
+        description="Renowned experts who contribute their specialized knowledge to our educational programs."
+      />
+
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
+        {guestSpeakers.map((instructor: any) => (
+          <a href={`/speakers/${instructor.slug}`} class="group">
+            <Card variant="outline" hover padding="sm" class="text-center">
+              <div class="relative w-32 h-32 mx-auto mb-4 rounded-full overflow-hidden border-4 border-[#DDC89D]">
+                <img
+                  src={instructor.photo_url}
+                  alt={instructor.name}
+                  class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                />
+              </div>
+              <Badge variant="gold" size="sm" class="mb-2">{instructor.credentials}</Badge>
+              <h3 class="text-lg font-bold text-[#13326A] group-hover:text-[#0B52AC] transition-colors">
+                {instructor.name}
+              </h3>
+              <p class="text-sm text-[#4E6E82]">{instructor.title}</p>
+            </Card>
+          </a>
+        ))}
+      </div>
+    </Section>
+  )}
+
+  <!-- All Instructors Grid (if no categorization or few instructors) -->
+  {founders.length === 0 && labTeam.length === 0 && (
+    <Section bg="white" padding="lg">
+      <SectionHeader
+        badge="Our Faculty"
+        title="Meet the Team"
+        description="World-class dental educators dedicated to advancing your clinical skills."
+      />
+
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
+        {instructors.map((instructor: any) => (
+          <a href={`/speakers/${instructor.slug}`} class="group">
+            <div class="bg-white rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-100">
+              <div class="relative h-72 overflow-hidden">
+                <img
+                  src={instructor.photo_url}
+                  alt={instructor.name}
+                  class="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500"
+                />
+                <div class="absolute inset-0 bg-gradient-to-t from-[#0C2044]/80 via-transparent to-transparent"></div>
+                <div class="absolute top-4 left-4">
+                  <Badge variant="gold">{instructor.credentials}</Badge>
+                </div>
+                <div class="absolute bottom-0 left-0 right-0 p-6">
+                  <h3 class="text-xl font-bold text-white">{instructor.name}</h3>
+                  <p class="text-[#DDC89D] font-semibold">{instructor.title}</p>
+                </div>
+              </div>
+              <div class="p-6">
+                <p class="text-[#4E6E82] leading-relaxed text-sm mb-4 line-clamp-3">
+                  {instructor.short_bio || instructor.bio?.substring(0, 150) + '...'}
+                </p>
+                <span class="inline-flex items-center gap-2 text-[#0B52AC] font-semibold text-sm">
+                  View Profile
+                  <svg class="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                  </svg>
+                </span>
+              </div>
+            </div>
+          </a>
+        ))}
+      </div>
+    </Section>
+  )}
+
+  <!-- CTA Section -->
+  <CTASection
+    title="Learn from the Best"
+    description="Join our courses and seminars to learn directly from these world-class instructors."
+    primaryAction={{ label: "Explore Courses", href: "/courses" }}
+    secondaryAction={{ label: "Monthly Seminars", href: "/monthly-seminars" }}
+  />
+</PageLayout>

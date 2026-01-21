@@ -1,0 +1,69 @@
+---
+/**
+ * SectionHeader - Consistent section header with badge, title, and description
+ *
+ * Usage:
+ * <SectionHeader
+ *   badge="Our Team"
+ *   title="Meet the Experts"
+ *   description="Our instructors are internationally recognized..."
+ *   align="center"
+ * />
+ */
+interface Props {
+  /** Badge/pill text above title */
+  badge?: string;
+  /** Main title */
+  title: string;
+  /** Description text below title */
+  description?: string;
+  /** Text alignment */
+  align?: 'left' | 'center';
+  /** For dark backgrounds */
+  dark?: boolean;
+  /** Additional classes */
+  class?: string;
+}
+
+const {
+  badge,
+  title,
+  description,
+  align = 'center',
+  dark = false,
+  class: className = '',
+} = Astro.props;
+
+const alignClasses = {
+  left: '',
+  center: 'text-center',
+};
+
+const titleColor = dark ? 'text-white' : 'text-[#13326A]';
+const descriptionColor = dark ? 'text-white/80' : 'text-[#4E6E82]';
+const badgeBg = dark ? 'bg-white/10' : 'bg-[#13326A]/10';
+const badgeText = dark ? 'text-white' : 'text-[#13326A]';
+---
+
+<div class:list={[alignClasses[align], 'mb-12 lg:mb-16', className]}>
+  {badge && (
+    <div class:list={['inline-flex items-center gap-2 px-4 py-2 rounded-full mb-4', badgeBg]}>
+      <span class:list={['text-sm font-semibold', badgeText]}>{badge}</span>
+    </div>
+  )}
+
+  <h2 class:list={['text-3xl md:text-4xl font-bold mb-4 font-heading', titleColor]}>
+    {title}
+  </h2>
+
+  {description && (
+    <p class:list={[
+      'text-lg leading-relaxed',
+      descriptionColor,
+      align === 'center' && 'max-w-2xl mx-auto',
+      align === 'left' && 'max-w-2xl',
+    ]}>
+      {description}
+    </p>
+  )}
+</div>

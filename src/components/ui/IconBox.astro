@@ -1,0 +1,57 @@
+---
+/**
+ * IconBox - Styled icon container used in feature cards, sections, etc.
+ *
+ * Usage:
+ * <IconBox variant="gold" size="md">
+ *   <svg>...</svg>
+ * </IconBox>
+ */
+interface Props {
+  /** Visual variant */
+  variant?: 'gold' | 'navy' | 'white' | 'gray';
+  /** Size */
+  size?: 'sm' | 'md' | 'lg' | 'xl';
+  /** Additional classes */
+  class?: string;
+}
+
+const {
+  variant = 'navy',
+  size = 'md',
+  class: className = '',
+} = Astro.props;
+
+const variantClasses = {
+  gold: 'bg-[#DDC89D] text-[#0C2044]',
+  navy: 'bg-[#13326A] text-white',
+  white: 'bg-white text-[#13326A]',
+  gray: 'bg-[#F8F9FA] text-[#13326A]',
+};
+
+const sizeClasses = {
+  sm: 'w-10 h-10 rounded-lg',
+  md: 'w-12 h-12 rounded-lg',
+  lg: 'w-14 h-14 rounded-xl',
+  xl: 'w-16 h-16 rounded-xl',
+};
+
+const iconSizes = {
+  sm: '[&>svg]:w-5 [&>svg]:h-5',
+  md: '[&>svg]:w-6 [&>svg]:h-6',
+  lg: '[&>svg]:w-7 [&>svg]:h-7',
+  xl: '[&>svg]:w-8 [&>svg]:h-8',
+};
+---
+
+<div
+  class:list={[
+    'flex items-center justify-center',
+    variantClasses[variant],
+    sizeClasses[size],
+    iconSizes[size],
+    className,
+  ]}
+>
+  <slot />
+</div>

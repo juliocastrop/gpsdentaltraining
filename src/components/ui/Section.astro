@@ -1,0 +1,65 @@
+---
+/**
+ * Section - Unified section component for consistent page layouts
+ *
+ * Usage:
+ * <Section bg="white" padding="lg">
+ *   <Section.Header badge="Our Team" title="Meet the Experts" description="..." />
+ *   <content>
+ * </Section>
+ */
+interface Props {
+  /** Background color */
+  bg?: 'white' | 'gray' | 'navy' | 'gradient';
+  /** Padding size */
+  padding?: 'sm' | 'md' | 'lg' | 'xl';
+  /** Additional classes */
+  class?: string;
+  /** ID for anchor links */
+  id?: string;
+  /** Add top border */
+  borderTop?: boolean;
+}
+
+const {
+  bg = 'white',
+  padding = 'lg',
+  class: className = '',
+  id,
+  borderTop = false,
+} = Astro.props;
+
+const bgClasses = {
+  white: 'bg-white',
+  gray: 'bg-[#F8F9FA]',
+  navy: 'bg-gradient-to-br from-[#0C2044] via-[#13326A] to-[#173D84] text-white [&_h1]:text-white [&_h2]:text-white [&_h3]:text-white [&_h4]:text-white',
+  gradient: 'bg-gradient-to-br from-[#0C2044] via-[#13326A] to-[#173D84] text-white [&_h1]:text-white [&_h2]:text-white [&_h3]:text-white [&_h4]:text-white relative overflow-hidden',
+};
+
+const paddingClasses = {
+  sm: 'py-8 lg:py-12',
+  md: 'py-12 lg:py-16',
+  lg: 'py-16 lg:py-20',
+  xl: 'py-20 lg:py-28',
+};
+---
+
+<section
+  id={id}
+  class:list={[
+    bgClasses[bg],
+    paddingClasses[padding],
+    borderTop && 'border-t border-gray-100',
+    className,
+  ]}
+>
+  {bg === 'gradient' && (
+    <div class="absolute inset-0">
+      <div class="absolute top-0 left-1/4 w-96 h-96 bg-[#DDC89D]/10 rounded-full blur-3xl"></div>
+      <div class="absolute bottom-0 right-1/4 w-96 h-96 bg-[#26ACF5]/10 rounded-full blur-3xl"></div>
+    </div>
+  )}
+  <div class:list={['container mx-auto px-4 lg:px-8 max-w-7xl', bg === 'gradient' && 'relative z-10']}>
+    <slot />
+  </div>
+</section>

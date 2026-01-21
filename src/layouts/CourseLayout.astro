@@ -1,0 +1,26 @@
+---
+import BaseLayout from './BaseLayout.astro';
+
+interface Props {
+  title: string;
+  description?: string;
+  ogImage?: string;
+  ceCredits?: number;
+  startDate?: string;
+  venue?: string;
+}
+
+const { title, description, ogImage, ceCredits, startDate, venue } = Astro.props;
+---
+
+<BaseLayout title={title} description={description} ogImage={ogImage}>
+  <article class="course-page">
+    <slot />
+  </article>
+</BaseLayout>
+
+<style>
+  .course-page {
+    @apply bg-white;
+  }
+</style>

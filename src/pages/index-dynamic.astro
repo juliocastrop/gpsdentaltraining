@@ -1,0 +1,294 @@
+---
+/**
+ * Dynamic Homepage
+ * Loads all content from Strapi CMS with fallback to static defaults
+ *
+ * This is the production-ready version that makes the homepage 100% administrable
+ */
+import BaseLayout from '../layouts/BaseLayout.astro';
+import HeroSlider from '../components/home/HeroSlider';
+import CTABanner from '../components/home/CTABanner';
+import CourseCarousel from '../components/home/CourseCarousel';
+import EventCalendar from '../components/home/EventCalendar';
+import SponsorsSlider from '../components/home/SponsorsSlider';
+import StatsCounter from '../components/home/StatsCounter';
+import Testimonials from '../components/home/Testimonials';
+import FeaturedSpeakers from '../components/home/FeaturedSpeakers';
+import WhyChooseGPS from '../components/home/WhyChooseGPS';
+import NewsletterSignup from '../components/home/NewsletterSignup';
+import Footer from '../components/layout/Footer';
+import AIAssistant from '../components/chat/AIAssistant';
+
+// Import the homepage data loader
+import { loadHomepageData } from '../lib/strapi/homepage-loader';
+import { getUpcomingEvents } from '../lib/supabase/queries';
+
+// Load homepage data from Strapi (with fallback to static)
+const homepageData = await loadHomepageData();
+
+// If courses section is enabled and we don't have courses from Strapi,
+// load from Supabase (for ticket/pricing data)
+let courses = homepageData.coursesSection.courses;
+if (homepageData.coursesSection.enabled && courses.length === 0) {
+  try {
+    const events = await getUpcomingEvents(6);
+    courses = events.map(event => ({
+      id: event.id,
+      title: event.title,
+      slug: event.slug,
+      description: event.description || undefined,
+      startDate: event.start_date,
+      endDate: event.end_date || undefined,
+      venue: event.venue || undefined,
+      ceCredits: event.ce_credits,
+      featuredImage: event.featured_image_url || undefined,
+      price: 1299, // Default price - would come from ticket_types
+    }));
+  } catch (error) {
+    console.error('Error fetching events from Supabase:', error);
+  }
+}
+
+// Determine data source for debugging
+const isStrapi = homepageData.dataSource === 'strapi';
+---
+
+<BaseLayout
+  title={homepageData.seo.title}
+  description={homepageData.seo.description}
+  ogImage={homepageData.seo.ogImage}
+>
+  <!-- Debug indicator (only in development) -->
+  {import.meta.env.DEV && (
+    <div class="fixed top-20 right-4 z-50 bg-black/80 text-white text-xs px-3 py-1 rounded-full">
+      Data: {isStrapi ? 'Strapi CMS' : 'Static Fallback'}
+    </div>
+  )}
+
+  <!-- Hero Slider -->
+  <HeroSlider
+    slides={homepageData.heroSlides}
+    autoplaySpeed={6000}
+    showNavigation={true}
+    showPagination={true}
+    client:load
+  />
+
+  <!-- Stats Counter Section -->
+  {homepageData.statsSection.enabled && (
+    <StatsCounter
+      variant={homepageData.statsSection.variant}
+      stats={homepageData.statsSection.stats.length > 0 ? homepageData.statsSection.stats : undefined}
+      client:visible
+    />
+  )}
+
+  <!-- Upcoming Courses Carousel -->
+  {homepageData.coursesSection.enabled && (
+    <div class="pt-20">
+      <CourseCarousel
+        courses={courses}
+        title={homepageData.coursesSection.title}
+        subtitle={homepageData.coursesSection.subtitle}
+        autoplay={homepageData.coursesSection.autoplay}
+        autoplaySpeed={homepageData.coursesSection.autoplaySpeed}
+        slidesToShow={homepageData.coursesSection.slidesToShow}
+        client:load
+      />
+    </div>
+  )}
+
+  <!-- Why Choose GPS Section -->
+  {homepageData.whyChooseSection.enabled && (
+    <WhyChooseGPS
+      title={homepageData.whyChooseSection.title}
+      subtitle={homepageData.whyChooseSection.subtitle}
+      features={homepageData.whyChooseSection.features.length > 0 ? homepageData.whyChooseSection.features : undefined}
+      client:visible
+    />
+  )}
+
+  <!-- CTA Banner - Monthly Seminars -->
+  {homepageData.ctaBanner.enabled && (
+    <CTABanner
+      title={homepageData.ctaBanner.title}
+      subtitle={homepageData.ctaBanner.subtitle}
+      description={homepageData.ctaBanner.description}
+      ctaText={homepageData.ctaBanner.ctaText}
+      ctaLink={homepageData.ctaBanner.ctaLink}
+      variant={homepageData.ctaBanner.variant}
+      client:load
+    />
+  )}
+
+  <!-- Featured Speakers -->
+  {homepageData.speakersSection.enabled && (
+    <FeaturedSpeakers
+      title={homepageData.speakersSection.title}
+      subtitle={homepageData.speakersSection.subtitle}
+      speakers={homepageData.speakersSection.speakers}
+      client:visible
+    />
+  )}
+
+  <!-- Event Calendar -->
+  {homepageData.calendarSection.enabled && (
+    <div class="bg-white">
+      <div class="container-wide py-16">
+        <div class="text-center mb-10">
+          <p class="text-[#DDC89D] font-semibold mb-2 uppercase tracking-wide">
+            {homepageData.calendarSection.subtitle}
+          </p>
+          <h2 class="text-3xl md:text-4xl lg:text-5xl font-bold text-[#0C2044] font-heading">
+            {homepageData.calendarSection.title}
+          </h2>
+        </div>
+        <EventCalendar
+          showSidebar={true}
+          eventTypeFilter="all"
+          client:load
+        />
+      </div>
+    </div>
+  )}
+
+  <!-- Testimonials -->
+  {homepageData.testimonialsSection.enabled && (
+    <Testimonials
+      title={homepageData.testimonialsSection.title}
+      subtitle={homepageData.testimonialsSection.subtitle}
+      testimonials={homepageData.testimonialsSection.testimonials}
+      showRatings={homepageData.testimonialsSection.showRatings}
+      autoplay={homepageData.testimonialsSection.autoplay}
+      client:visible
+    />
+  )}
+
+  <!-- Stats Section - Full Width (Second instance) -->
+  <StatsCounter variant="default" client:visible />
+
+  <!-- Newsletter Signup -->
+  {homepageData.newsletterSection.enabled && (
+    <NewsletterSignup
+      title={homepageData.newsletterSection.title}
+      subtitle={homepageData.newsletterSection.subtitle}
+      description={homepageData.newsletterSection.description}
+      variant={homepageData.newsletterSection.variant}
+      client:visible
+    />
+  )}
+
+  <!-- Sponsors Slider -->
+  {homepageData.sponsorsSection.enabled && (
+    <SponsorsSlider
+      sponsors={homepageData.sponsorsSection.sponsors}
+      title={homepageData.sponsorsSection.title}
+      showTitle={homepageData.sponsorsSection.showTitle}
+      client:load
+    />
+  )}
+
+  <!-- Contact Section -->
+  {homepageData.contactSection.enabled && (
+    <section class="py-20 bg-[#F2F2F2]">
+      <div class="container-wide">
+        <div class="text-center mb-12">
+          <p class="text-[#DDC89D] font-semibold mb-2 uppercase tracking-wide">
+            {homepageData.contactSection.subtitle}
+          </p>
+          <h2 class="text-3xl md:text-4xl lg:text-5xl font-bold text-[#0C2044] font-heading">
+            {homepageData.contactSection.title}
+          </h2>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-stretch">
+          <!-- Map/Location -->
+          {homepageData.contactSection.showMap && (
+            <div class="bg-white rounded-2xl shadow-xl overflow-hidden">
+              <iframe
+                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3309.4714559159!2d-84.1536!3d33.9606!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zMzPCsDU3JzM4LjIiTiA4NMKwMDknMTMuMCJX!5e0!3m2!1sen!2sus!4v1234567890"
+                width="100%"
+                height="100%"
+                style="border:0; min-height: 400px;"
+                allowfullscreen=""
+                loading="lazy"
+                referrerpolicy="no-referrer-when-downgrade"
+                title="GPS Training Center Location"
+              ></iframe>
+            </div>
+          )}
+
+          <!-- Contact Info -->
+          <div class="bg-white rounded-2xl shadow-xl p-8 md:p-10">
+            <h3 class="text-2xl font-bold text-[#0C2044] mb-8">Contact Information</h3>
+
+            <div class="space-y-6">
+              <div class="flex items-start gap-4 p-4 bg-[#F2F2F2] rounded-xl hover:bg-[#DDC89D]/10 transition-colors">
+                <div class="w-12 h-12 bg-[#0B52AC] rounded-lg flex items-center justify-center flex-shrink-0">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <h4 class="font-semibold text-[#0C2044] mb-1">Training Center</h4>
+                  <p class="text-gray-600">6320 Sugarloaf Parkway<br>Duluth, GA 30097</p>
+                </div>
+              </div>
+
+              <div class="flex items-start gap-4 p-4 bg-[#F2F2F2] rounded-xl hover:bg-[#DDC89D]/10 transition-colors">
+                <div class="w-12 h-12 bg-[#0B52AC] rounded-lg flex items-center justify-center flex-shrink-0">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <div>
+                  <h4 class="font-semibold text-[#0C2044] mb-1">Email</h4>
+                  <a href="mailto:gpsdentaltraining@gaprostho.com" class="text-[#0B52AC] hover:text-[#0C2044] transition-colors font-medium">
+                    gpsdentaltraining@gaprostho.com
+                  </a>
+                </div>
+              </div>
+
+              <div class="flex items-start gap-4 p-4 bg-[#F2F2F2] rounded-xl hover:bg-[#DDC89D]/10 transition-colors">
+                <div class="w-12 h-12 bg-[#0B52AC] rounded-lg flex items-center justify-center flex-shrink-0">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <h4 class="font-semibold text-[#0C2044] mb-1">Office Hours</h4>
+                  <p class="text-gray-600">Monday - Friday: 9:00 AM - 5:00 PM EST</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-8 pt-6 border-t border-gray-200">
+              <a
+                href="/contact"
+                class="inline-flex items-center justify-center w-full gap-2 bg-[#0C2044] hover:bg-[#173D84] text-white px-8 py-4 rounded-lg font-semibold text-lg transition-all duration-300 shadow-lg hover:shadow-xl"
+              >
+                Send Us a Message
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                </svg>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  )}
+
+  <!-- AI Assistant Chat Widget -->
+  <AIAssistant
+    initialMessage="Hello! I'm your GPS Dental Training assistant. I can help you with course information, availability, pricing, and enrollment. How can I assist you today?"
+    position="bottom-right"
+    client:load
+  />
+
+  <!-- Custom Bicolor Footer -->
+  <Fragment slot="footer">
+    <Footer client:load />
+  </Fragment>
+</BaseLayout>

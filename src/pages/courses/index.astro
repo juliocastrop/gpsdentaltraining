@@ -1,0 +1,442 @@
+---
+/**
+ * Courses Listing Page - GPS Dental Training
+ * Premium design with filtering, featured course, and dynamic grid
+ *
+ * All content is 100% backend-controlled:
+ * - Courses come from Supabase events table
+ * - Speakers come from speakers table via event_speakers junction
+ * - Hero content can be managed via site_settings table (future enhancement)
+ */
+import '../../styles/global.css';
+import Navbar from '../../components/layout/Navbar';
+import Footer from '../../components/layout/Footer';
+import CourseCard from '../../components/events/CourseCard.astro';
+import { getPublishedEventsWithSpeakers, getFeaturedEvent } from '../../lib/supabase/queries';
+import type { EventWithSpeakers } from '../../types/database';
+
+// Fetch data from backend
+const allEvents = await getPublishedEventsWithSpeakers();
+const featuredEvent = await getFeaturedEvent();
+
+// Separate featured from other events (don't duplicate)
+const otherEvents = featuredEvent
+  ? allEvents.filter(e => e.id !== featuredEvent.id)
+  : allEvents;
+
+// Get unique values for filters (from backend data)
+const ceCreditsOptions = [...new Set(allEvents.map(e => e.ce_credits))].sort((a, b) => a - b);
+
+// Calculate stats
+const totalCourses = allEvents.length;
+const upcomingCourses = allEvents.filter(e => new Date(e.start_date) > new Date()).length;
+const totalCECredits = allEvents.reduce((sum, e) => sum + e.ce_credits, 0);
+
+// Page meta
+const pageTitle = "Dental Training Courses";
+const pageDescription = "Explore our comprehensive dental training courses and earn CE credits. From PRF protocols to implant surgery, advance your dental career with GPS Dental Training.";
+---
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content={pageDescription} />
+
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={Astro.url.href} />
+    <meta property="og:title" content={`${pageTitle} | GPS Dental Training`} />
+    <meta property="og:description" content={pageDescription} />
+    <meta property="og:image" content="/og-courses.jpg" />
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+
+    <title>{pageTitle} | GPS Dental Training</title>
+  </head>
+
+  <body class="min-h-screen flex flex-col bg-white">
+    <!-- Navigation -->
+    <Navbar
+      logo="/logo.svg"
+      logoWhite="/logo-white.svg"
+      transparent={true}
+      client:load
+    />
+
+    <!-- Hero Section -->
+    <section class="relative min-h-[50vh] lg:min-h-[60vh] flex items-center bg-gradient-to-br from-[#0C2044] via-[#173D84] to-[#0C2044] overflow-hidden">
+      <!-- Decorative Elements -->
+      <div class="absolute inset-0 opacity-10">
+        <div class="absolute top-20 left-10 w-72 h-72 bg-[#DDC89D] rounded-full blur-3xl"></div>
+        <div class="absolute bottom-20 right-10 w-96 h-96 bg-[#26ACF5] rounded-full blur-3xl"></div>
+        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-white/5 rounded-full"></div>
+      </div>
+
+      <!-- Grid Pattern -->
+      <div class="absolute inset-0 opacity-5">
+        <div class="absolute inset-0" style="background-image: radial-gradient(circle at 1px 1px, white 1px, transparent 0); background-size: 40px 40px;"></div>
+      </div>
+
+      <div class="container mx-auto px-4 lg:px-8 max-w-7xl relative z-10 py-24 lg:py-32">
+        <div class="max-w-3xl">
+          <!-- Breadcrumb -->
+          <nav class="flex items-center gap-2 text-white/60 text-sm mb-6">
+            <a href="/" class="hover:text-white transition-colors">Home</a>
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+            </svg>
+            <span class="text-white">Courses</span>
+          </nav>
+
+          <!-- Badge -->
+          <div class="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 text-white px-4 py-2 rounded-full text-sm mb-6">
+            <svg class="w-5 h-5 text-[#DDC89D]" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3z"/>
+            </svg>
+            PACE Approved CE Provider
+          </div>
+
+          <!-- Title -->
+          <h1 class="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white mb-6 leading-tight font-heading">
+            Advance Your
+            <span class="text-[#DDC89D]">Dental Career</span>
+          </h1>
+
+          <!-- Description -->
+          <p class="text-xl text-white/80 mb-8 max-w-2xl leading-relaxed">
+            Hands-on training from world-renowned experts. Master the latest techniques in PRF protocols, implant surgery, and more while earning CE credits.
+          </p>
+
+          <!-- Stats -->
+          <div class="flex flex-wrap gap-6 lg:gap-10">
+            <div class="text-center">
+              <p class="text-3xl lg:text-4xl font-bold text-white">{totalCourses}</p>
+              <p class="text-sm text-white/60 uppercase tracking-wide">Courses</p>
+            </div>
+            <div class="text-center">
+              <p class="text-3xl lg:text-4xl font-bold text-[#DDC89D]">{upcomingCourses}</p>
+              <p class="text-sm text-white/60 uppercase tracking-wide">Upcoming</p>
+            </div>
+            <div class="text-center">
+              <p class="text-3xl lg:text-4xl font-bold text-white">{totalCECredits}+</p>
+              <p class="text-sm text-white/60 uppercase tracking-wide">CE Credits Available</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Wave Divider -->
+      <div class="absolute bottom-0 left-0 right-0">
+        <svg viewBox="0 0 1440 100" fill="none" xmlns="http://www.w3.org/2000/svg" class="w-full h-auto">
+          <path d="M0 50L48 45.7C96 41 192 33 288 35.3C384 37 480 49 576 55.3C672 62 768 62 864 55.3C960 49 1056 35 1152 30.8C1248 27 1344 33 1392 36.2L1440 39V100H1392C1344 100 1248 100 1152 100C1056 100 960 100 864 100C768 100 672 100 576 100C480 100 384 100 288 100C192 100 96 100 48 100H0V50Z" fill="#F8F9FA"/>
+        </svg>
+      </div>
+    </section>
+
+    <!-- Main Content -->
+    <main class="flex-1 bg-[#F8F9FA]">
+      <div class="container mx-auto px-4 lg:px-8 max-w-7xl py-12 lg:py-16">
+
+        <!-- Featured Course Section -->
+        {featuredEvent && (
+          <section class="mb-12 lg:mb-16">
+            <div class="flex items-center justify-between mb-6">
+              <div class="flex items-center gap-3">
+                <div class="w-1.5 h-8 bg-gradient-to-b from-[#DDC89D] to-[#BFAC87] rounded-full"></div>
+                <h2 class="text-2xl lg:text-3xl font-bold text-[#0C2044]">Next Course</h2>
+              </div>
+              <a href={`/courses/${featuredEvent.slug}`} class="text-[#0B52AC] font-semibold hover:underline hidden sm:flex items-center gap-1">
+                View Details
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                </svg>
+              </a>
+            </div>
+            <CourseCard event={featuredEvent} featured={true} />
+          </section>
+        )}
+
+        <!-- Filters Section -->
+        <section class="mb-8">
+          <div class="bg-white rounded-2xl shadow-lg p-6">
+            <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div class="flex items-center gap-3">
+                <svg class="w-5 h-5 text-[#0B52AC]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/>
+                </svg>
+                <span class="font-semibold text-[#0C2044]">Filter Courses</span>
+                <span class="text-sm text-gray-500">
+                  Showing <strong class="text-[#0C2044]" id="course-count">{otherEvents.length}</strong> courses
+                </span>
+              </div>
+
+              <div class="flex flex-wrap items-center gap-3">
+                <!-- View Toggle -->
+                <div class="flex items-center bg-gray-100 rounded-lg p-1">
+                  <button type="button" id="view-grid" class="view-toggle-btn active px-3 py-1.5 rounded-md text-sm font-medium transition-all" aria-label="Grid view">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
+                    </svg>
+                  </button>
+                  <button type="button" id="view-list" class="view-toggle-btn px-3 py-1.5 rounded-md text-sm font-medium transition-all" aria-label="List view">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+                    </svg>
+                  </button>
+                </div>
+
+                <!-- Sort Dropdown -->
+                <select id="sort-select" class="bg-gray-100 border-0 rounded-lg px-4 py-2 text-sm font-medium text-[#0C2044] focus:ring-2 focus:ring-[#0B52AC] cursor-pointer">
+                  <option value="date-asc">Date: Soonest First</option>
+                  <option value="date-desc">Date: Latest First</option>
+                  <option value="credits-desc">CE Credits: High to Low</option>
+                  <option value="credits-asc">CE Credits: Low to High</option>
+                </select>
+
+                <!-- CE Credits Filter -->
+                <select id="credits-filter" class="bg-gray-100 border-0 rounded-lg px-4 py-2 text-sm font-medium text-[#0C2044] focus:ring-2 focus:ring-[#0B52AC] cursor-pointer">
+                  <option value="">All CE Credits</option>
+                  {ceCreditsOptions.map(credits => (
+                    <option value={credits.toString()}>{credits} CE Credits</option>
+                  ))}
+                </select>
+
+                <!-- Clear Filters -->
+                <button type="button" id="clear-filters" class="text-sm text-gray-500 hover:text-[#0B52AC] font-medium hidden">
+                  Clear Filters
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Courses Grid -->
+        <section id="courses-container">
+          {otherEvents.length > 0 ? (
+            <div id="courses-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
+              {otherEvents.map((event: EventWithSpeakers) => (
+                <div
+                  class="course-item"
+                  data-date={event.start_date}
+                  data-credits={event.ce_credits}
+                  data-venue={event.venue || ''}
+                >
+                  <CourseCard event={event} />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div class="text-center py-20 bg-white rounded-2xl shadow-lg">
+              <div class="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                <svg class="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                </svg>
+              </div>
+              <h3 class="text-2xl font-bold text-[#0C2044] mb-3">No Courses Available</h3>
+              <p class="text-gray-600 max-w-md mx-auto">
+                We're currently preparing our course schedule. Check back soon for upcoming training opportunities.
+              </p>
+            </div>
+          )}
+
+          <!-- No Results Message -->
+          <div id="no-results" class="hidden text-center py-20 bg-white rounded-2xl shadow-lg">
+            <div class="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <svg class="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+              </svg>
+            </div>
+            <h3 class="text-2xl font-bold text-[#0C2044] mb-3">No Courses Match Your Filters</h3>
+            <p class="text-gray-600 max-w-md mx-auto mb-6">
+              Try adjusting your filter criteria to see more courses.
+            </p>
+            <button type="button" id="reset-filters-btn" class="px-6 py-2 bg-[#0B52AC] text-white font-semibold rounded-lg hover:bg-[#0C2044] transition-colors">
+              Reset Filters
+            </button>
+          </div>
+        </section>
+      </div>
+
+      <!-- Newsletter CTA Section -->
+      <section class="bg-gradient-to-br from-[#0C2044] via-[#173D84] to-[#0C2044] py-16 lg:py-20 relative overflow-hidden">
+        <!-- Decorative Elements -->
+        <div class="absolute inset-0 opacity-10">
+          <div class="absolute top-10 right-10 w-64 h-64 bg-[#DDC89D] rounded-full blur-3xl"></div>
+          <div class="absolute bottom-10 left-10 w-48 h-48 bg-[#26ACF5] rounded-full blur-3xl"></div>
+        </div>
+
+        <div class="container mx-auto px-4 lg:px-8 max-w-4xl text-center relative z-10">
+          <div class="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 text-white px-4 py-2 rounded-full text-sm mb-6">
+            <svg class="w-5 h-5 text-[#DDC89D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+            </svg>
+            Stay Informed
+          </div>
+
+          <h2 class="text-3xl lg:text-4xl font-bold text-white mb-4">
+            Never Miss a Course
+          </h2>
+          <p class="text-lg text-white/80 mb-8 max-w-xl mx-auto">
+            Subscribe to our newsletter and be the first to know about new courses, early bird pricing, and exclusive training opportunities.
+          </p>
+
+          <form class="flex flex-col sm:flex-row gap-4 justify-center max-w-lg mx-auto" id="newsletter-form">
+            <input
+              type="email"
+              placeholder="Enter your email address"
+              class="flex-1 px-6 py-4 rounded-xl text-[#0C2044] bg-white shadow-lg focus:outline-none focus:ring-2 focus:ring-[#DDC89D]"
+              required
+            />
+            <button type="submit" class="px-8 py-4 bg-gradient-to-r from-[#DDC89D] to-[#BFAC87] text-[#0C2044] font-bold rounded-xl shadow-lg hover:shadow-xl transition-all hover:scale-105">
+              Subscribe
+            </button>
+          </form>
+
+          <p class="text-white/60 text-sm mt-4">
+            No spam, unsubscribe anytime. We respect your privacy.
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <Footer client:load />
+
+    <!-- Filter & Sort Script -->
+    <script>
+      document.addEventListener('DOMContentLoaded', () => {
+        const coursesGrid = document.getElementById('courses-grid');
+        const courseItems = document.querySelectorAll('.course-item');
+        const sortSelect = document.getElementById('sort-select') as HTMLSelectElement;
+        const creditsFilter = document.getElementById('credits-filter') as HTMLSelectElement;
+        const clearFiltersBtn = document.getElementById('clear-filters');
+        const resetFiltersBtn = document.getElementById('reset-filters-btn');
+        const courseCount = document.getElementById('course-count');
+        const noResults = document.getElementById('no-results');
+        const viewGridBtn = document.getElementById('view-grid');
+        const viewListBtn = document.getElementById('view-list');
+
+        if (!coursesGrid || !courseItems.length) return;
+
+        function filterAndSort() {
+          const sortValue = sortSelect?.value || 'date-asc';
+          const creditsValue = creditsFilter?.value || '';
+
+          // Convert NodeList to Array for sorting
+          const items = Array.from(courseItems) as HTMLElement[];
+
+          // Filter
+          let visibleCount = 0;
+          items.forEach(item => {
+            const credits = item.dataset.credits || '';
+            let visible = true;
+
+            if (creditsValue && credits !== creditsValue) {
+              visible = false;
+            }
+
+            item.style.display = visible ? '' : 'none';
+            if (visible) visibleCount++;
+          });
+
+          // Update count
+          if (courseCount) courseCount.textContent = visibleCount.toString();
+
+          // Show/hide no results
+          if (noResults && coursesGrid) {
+            if (visibleCount === 0) {
+              noResults.classList.remove('hidden');
+              coursesGrid.classList.add('hidden');
+            } else {
+              noResults.classList.add('hidden');
+              coursesGrid.classList.remove('hidden');
+            }
+          }
+
+          // Show clear filters button
+          if (clearFiltersBtn) {
+            if (creditsValue) {
+              clearFiltersBtn.classList.remove('hidden');
+            } else {
+              clearFiltersBtn.classList.add('hidden');
+            }
+          }
+
+          // Sort visible items
+          const visibleItems = items.filter(item => item.style.display !== 'none');
+
+          visibleItems.sort((a, b) => {
+            const dateA = new Date(a.dataset.date || '').getTime();
+            const dateB = new Date(b.dataset.date || '').getTime();
+            const creditsA = parseInt(a.dataset.credits || '0');
+            const creditsB = parseInt(b.dataset.credits || '0');
+
+            switch (sortValue) {
+              case 'date-asc':
+                return dateA - dateB;
+              case 'date-desc':
+                return dateB - dateA;
+              case 'credits-desc':
+                return creditsB - creditsA;
+              case 'credits-asc':
+                return creditsA - creditsB;
+              default:
+                return 0;
+            }
+          });
+
+          // Reorder DOM
+          visibleItems.forEach(item => {
+            coursesGrid.appendChild(item);
+          });
+        }
+
+        function resetFilters() {
+          if (sortSelect) sortSelect.value = 'date-asc';
+          if (creditsFilter) creditsFilter.value = '';
+          filterAndSort();
+        }
+
+        // Event listeners
+        sortSelect?.addEventListener('change', filterAndSort);
+        creditsFilter?.addEventListener('change', filterAndSort);
+        clearFiltersBtn?.addEventListener('click', resetFilters);
+        resetFiltersBtn?.addEventListener('click', resetFilters);
+
+        // View toggle
+        viewGridBtn?.addEventListener('click', () => {
+          coursesGrid.classList.remove('grid-cols-1');
+          coursesGrid.classList.add('grid-cols-1', 'md:grid-cols-2', 'lg:grid-cols-3');
+          viewGridBtn.classList.add('active', 'bg-white', 'shadow');
+          viewListBtn?.classList.remove('active', 'bg-white', 'shadow');
+        });
+
+        viewListBtn?.addEventListener('click', () => {
+          coursesGrid.classList.remove('md:grid-cols-2', 'lg:grid-cols-3');
+          coursesGrid.classList.add('grid-cols-1');
+          viewListBtn.classList.add('active', 'bg-white', 'shadow');
+          viewGridBtn?.classList.remove('active', 'bg-white', 'shadow');
+        });
+
+        // Initial setup
+        filterAndSort();
+      });
+    </script>
+
+    <style>
+      .view-toggle-btn {
+        @apply text-gray-500;
+      }
+      .view-toggle-btn.active {
+        @apply bg-white text-[#0C2044] shadow;
+      }
+    </style>
+  </body>
+</html>

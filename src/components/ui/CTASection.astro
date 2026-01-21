@@ -1,0 +1,92 @@
+---
+/**
+ * CTASection - Call-to-action section with gradient background
+ *
+ * Usage:
+ * <CTASection
+ *   title="Ready to Advance Your Skills?"
+ *   description="Join our community of dental professionals..."
+ *   primaryAction={{ label: "Explore Courses", href: "/courses" }}
+ *   secondaryAction={{ label: "Contact Us", href: "/contact" }}
+ * />
+ */
+interface Action {
+  label: string;
+  href: string;
+}
+
+interface Props {
+  /** Main heading */
+  title: string;
+  /** Description text */
+  description?: string;
+  /** Primary CTA button (gold) */
+  primaryAction?: Action;
+  /** Secondary CTA button (outline) */
+  secondaryAction?: Action;
+  /** Tertiary CTA button (ghost) */
+  tertiaryAction?: Action;
+}
+
+const {
+  title,
+  description,
+  primaryAction,
+  secondaryAction,
+  tertiaryAction,
+} = Astro.props;
+---
+
+<section class="py-16 lg:py-20 bg-gradient-to-br from-[#0C2044] via-[#13326A] to-[#173D84] text-white relative overflow-hidden">
+  <!-- Decorative Elements -->
+  <div class="absolute inset-0">
+    <div class="absolute top-0 left-1/4 w-96 h-96 bg-[#DDC89D]/10 rounded-full blur-3xl"></div>
+    <div class="absolute bottom-0 right-1/4 w-96 h-96 bg-[#26ACF5]/10 rounded-full blur-3xl"></div>
+  </div>
+
+  <div class="container mx-auto px-4 lg:px-8 max-w-7xl relative z-10">
+    <div class="max-w-3xl mx-auto text-center">
+      <h2 class="text-3xl md:text-4xl lg:text-5xl font-bold mb-6 font-heading text-white">
+        {title}
+      </h2>
+
+      {description && (
+        <p class="text-xl text-white/80 mb-10 leading-relaxed">
+          {description}
+        </p>
+      )}
+
+      <div class="flex flex-col sm:flex-row gap-4 justify-center">
+        {primaryAction && (
+          <a
+            href={primaryAction.href}
+            class="inline-flex items-center justify-center gap-2 bg-[#DDC89D] text-[#0C2044] px-10 py-5 rounded-xl font-bold text-lg hover:bg-white transition-all shadow-lg hover:shadow-xl"
+          >
+            {primaryAction.label}
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+            </svg>
+          </a>
+        )}
+
+        {secondaryAction && (
+          <a
+            href={secondaryAction.href}
+            class="inline-flex items-center justify-center gap-2 bg-white/10 backdrop-blur-sm text-white px-10 py-5 rounded-xl font-bold text-lg hover:bg-white/20 transition-all border border-white/20"
+          >
+            {secondaryAction.label}
+          </a>
+        )}
+
+        {tertiaryAction && (
+          <a
+            href={tertiaryAction.href}
+            class="inline-flex items-center justify-center gap-2 bg-transparent text-white px-10 py-5 rounded-xl font-bold text-lg hover:bg-white/10 transition-all border border-white/30"
+          >
+            {tertiaryAction.label}
+          </a>
+        )}
+      </div>
+    </div>
+  </div>
+</section>

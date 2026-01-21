@@ -1,0 +1,50 @@
+---
+/**
+ * Badge/Pill - Small label component for categories, status, etc.
+ *
+ * Usage:
+ * <Badge variant="gold">15 CE Credits</Badge>
+ * <Badge variant="navy" size="sm">New</Badge>
+ */
+interface Props {
+  /** Visual variant */
+  variant?: 'gold' | 'navy' | 'white' | 'outline' | 'success' | 'warning' | 'danger';
+  /** Size */
+  size?: 'sm' | 'md' | 'lg';
+  /** Additional classes */
+  class?: string;
+}
+
+const {
+  variant = 'gold',
+  size = 'md',
+  class: className = '',
+} = Astro.props;
+
+const variantClasses = {
+  gold: 'bg-[#DDC89D] text-[#0C2044]',
+  navy: 'bg-[#13326A] text-white',
+  white: 'bg-white text-[#13326A]',
+  outline: 'bg-transparent border-2 border-[#13326A] text-[#13326A]',
+  success: 'bg-[#28A745] text-white',
+  warning: 'bg-[#FFC107] text-[#0C2044]',
+  danger: 'bg-[#DC3545] text-white',
+};
+
+const sizeClasses = {
+  sm: 'px-2 py-0.5 text-xs',
+  md: 'px-3 py-1 text-sm',
+  lg: 'px-4 py-1.5 text-base',
+};
+---
+
+<span
+  class:list={[
+    'inline-flex items-center font-bold rounded-full',
+    variantClasses[variant],
+    sizeClasses[size],
+    className,
+  ]}
+>
+  <slot />
+</span>

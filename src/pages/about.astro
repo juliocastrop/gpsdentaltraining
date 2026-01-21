@@ -1,0 +1,370 @@
+---
+/**
+ * About Us Page - GPS Dental Training
+ * Fully dynamic page using PageLayout and unified design system components
+ * All content is fetched from database (team_members, pages, testimonials, partners)
+ */
+import PageLayout from '../layouts/PageLayout.astro';
+import Section from '../components/ui/Section.astro';
+import SectionHeader from '../components/ui/SectionHeader.astro';
+import Card from '../components/ui/Card.astro';
+import IconBox from '../components/ui/IconBox.astro';
+import Badge from '../components/ui/Badge.astro';
+import CTASection from '../components/ui/CTASection.astro';
+import { supabaseAdmin } from '../lib/supabase/client';
+import { getTeamMembers } from '../lib/supabase/queries';
+
+// Fetch page content from database
+const { data: pageData } = await supabaseAdmin
+  .from('pages')
+  .select('*')
+  .eq('slug', 'about')
+  .eq('status', 'published')
+  .single();
+
+// Fetch team members from database
+let teamMembers: any[] = [];
+try {
+  teamMembers = await getTeamMembers() || [];
+} catch (e) {
+  // Fallback if table doesn't exist yet
+  teamMembers = [];
+}
+
+// Fetch testimonials
+const { data: testimonials } = await supabaseAdmin
+  .from('testimonials')
+  .select('*')
+  .eq('status', 'active')
+  .eq('is_featured', true)
+  .order('display_order')
+  .limit(3);
+
+// Fetch partners/accreditations
+const { data: partners } = await supabaseAdmin
+  .from('partners')
+  .select('*')
+  .eq('status', 'active')
+  .eq('partner_type', 'accreditation')
+  .order('display_order')
+  .limit(5);
+
+// Content with defaults
+const content = pageData?.content || {};
+const mission = content.mission || "To provide advanced dental education that enhances the knowledge, skills, and abilities of dental professionals, empowering them to deliver exceptional patient care.";
+const vision = content.vision || "To be the leading provider of specialized dental training through collaborative partnerships, innovative techniques, and individualized mentorship programs.";
+const location = content.location || {
+  address: "6320 Sugarloaf Parkway",
+  city: "Duluth",
+  state: "GA",
+  zip: "30097",
+  description: "Easy access via I-85, near hotels, restaurants, and convention centers"
+};
+const facilities = content.facilities || [
+  { name: "Clinical Settings", description: "Access to the Dental Implant Center with real patient cases and live surgical demonstrations.", icon: "clinical" },
+  { name: "Prostho Dental Lab", description: "In-house laboratory equipped with cutting-edge CAD/CAM technology and milling equipment.", icon: "lab" },
+  { name: "Digital Technology", description: "CBCT imaging, intraoral scanners, and digital surgical planning software for comprehensive training.", icon: "digital" }
+];
+
+// Stats for hero (from content or defaults)
+const heroStats = content.stats || [
+  { value: '15+', label: 'Years of Excellence' },
+  { value: '1,000+', label: 'Professionals Trained', accent: true },
+  { value: '100+', label: 'Courses Delivered' },
+  { value: '10,000+', label: 'CE Credits Awarded' },
+];
+
+// Fallback team data if database is empty
+const defaultTeam = [
+  {
+    id: '1',
+    name: 'Carlos Castro',
+    slug: 'carlos-castro',
+    credentials: 'DDS, FACP',
+    title: 'Founder & Program Director',
+    role: 'Diplomate, American Board of Prosthodontics',
+    bio: 'Dr. Castro is a board-certified prosthodontist with a Fellowship from Columbia University College of Dental Medicine. As founder and director of GPS Dental Training, he brings over 20 years of clinical experience in complex restorative dentistry, implant prosthodontics, and full-mouth rehabilitation.',
+    photo_url: 'https://gpsdentaltraining.com/wp-content/uploads/slider4/img-dr-carlos-castro.jpg',
+  },
+  {
+    id: '2',
+    name: 'Alessandro Cucchiaro',
+    slug: 'alessandro-cucchiaro',
+    credentials: 'MDT',
+    title: 'European Master Dental Technician',
+    role: 'Laboratory Director',
+    bio: 'Alessandro is a European-trained Master Dental Technician with international credentials in advanced prosthetic fabrication. His expertise spans CAD/CAM technology, ceramic restorations, and implant-supported prosthetics.',
+    photo_url: 'https://gpsdentaltraining.com/wp-content/uploads/slider4/alessandro.png',
+  },
+  {
+    id: '3',
+    name: 'David Li',
+    slug: 'david-li',
+    credentials: 'MDT',
+    title: 'International Master Dental Technician',
+    role: 'Senior Laboratory Instructor',
+    bio: 'David brings international training and expertise in complex dental restorations to the GPS team. Specializing in esthetic and implant restorations, he works closely with clinicians to achieve optimal outcomes.',
+    photo_url: 'https://gpsdentaltraining.com/wp-content/uploads/slider4/david.png',
+  },
+];
+
+const team = teamMembers.length > 0 ? teamMembers : defaultTeam;
+
+// Facility icons mapping
+const facilityIcons: Record<string, string> = {
+  clinical: 'M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z',
+  lab: 'M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z',
+  digital: 'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z',
+};
+---
+
+<PageLayout
+  title={pageData?.meta_title || "About Us"}
+  description={pageData?.meta_description || "Learn about GPS Dental Training - Georgia's premier destination for advanced dental education in implantology, prosthodontics, and digital dentistry."}
+  ogImage={pageData?.og_image_url}
+  breadcrumbs={[{ label: 'About Us' }]}
+  heroTitle="Georgia Prosthodontics"
+  heroTitleAccent="Study Club & Training Center"
+  heroDescription="Advanced Education in Implant, Restorative and Digital Dentistry. Join our community of dental professionals committed to clinical excellence."
+  heroBadge={{ icon: 'building', text: 'Duluth, Georgia' }}
+  heroImage={pageData?.hero_image_url || "https://gpsdentaltraining.com/wp-content/uploads/2025/06/image-building-unique-facility.jpg.webp"}
+  heroStats={heroStats}
+>
+  <!-- Mission & Vision -->
+  <Section bg="white" padding="lg">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-6xl mx-auto">
+      <!-- Mission -->
+      <Card variant="navy" padding="lg">
+        <div class="relative z-10">
+          <IconBox variant="gold" size="xl" class="mb-6">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+          </IconBox>
+          <h2 class="text-3xl font-bold mb-4 font-heading">Our Mission</h2>
+          <p class="text-white/90 leading-relaxed text-lg">{mission}</p>
+        </div>
+      </Card>
+
+      <!-- Vision -->
+      <Card variant="gray" padding="lg">
+        <IconBox variant="navy" size="xl" class="mb-6">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+          </svg>
+        </IconBox>
+        <h2 class="text-3xl font-bold text-[#13326A] mb-4 font-heading">Our Vision</h2>
+        <p class="text-[#4E6E82] leading-relaxed text-lg">{vision}</p>
+      </Card>
+    </div>
+  </Section>
+
+  <!-- Our Facility -->
+  <Section bg="gray" padding="lg">
+    <SectionHeader
+      badge="World-Class Facilities"
+      title="Our Training Center"
+      description="Our state-of-the-art facility in Duluth, Georgia features clinical settings, advanced diagnostic equipment, and an in-house dental laboratory for comprehensive hands-on training."
+    />
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto mb-12 lg:mb-16">
+      {facilities.map((facility: any, index: number) => (
+        <Card variant={index === 0 ? "navy" : "outline"} hover padding="md" class="group">
+          <div class="relative z-10">
+            <IconBox variant={index === 0 ? "gold" : (index === 1 ? "navy" : "gold")} size="lg" class="mb-6 group-hover:scale-110 transition-transform">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d={facilityIcons[facility.icon] || facilityIcons.clinical} />
+              </svg>
+            </IconBox>
+            <h3 class={`text-xl font-bold mb-3 ${index === 0 ? '' : 'text-[#13326A]'}`}>{facility.name}</h3>
+            <p class={`leading-relaxed ${index === 0 ? 'text-white/80' : 'text-[#4E6E82]'}`}>{facility.description}</p>
+          </div>
+        </Card>
+      ))}
+    </div>
+
+    <!-- Location Card -->
+    <div class="bg-gradient-to-r from-[#0C2044] via-[#13326A] to-[#173D84] rounded-2xl p-8 md:p-10 max-w-4xl mx-auto">
+      <div class="flex flex-col md:flex-row items-center gap-8">
+        <div class="flex-shrink-0">
+          <div class="w-24 h-24 bg-[#DDC89D] text-[#0C2044] rounded-2xl flex items-center justify-center">
+            <svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </div>
+        </div>
+        <div class="text-white text-center md:text-left flex-grow">
+          <h3 class="text-2xl font-bold mb-2 text-white">Conveniently Located in {location.city}, {location.state}</h3>
+          <p class="text-white/90 text-lg mb-1">{location.address}, {location.city}, {location.state} {location.zip}</p>
+          <p class="text-white/70">{location.description}</p>
+        </div>
+        <a
+          href={`https://maps.google.com/?q=${encodeURIComponent(`${location.address} ${location.city} ${location.state}`)}`}
+          target="_blank"
+          rel="noopener"
+          class="flex-shrink-0 bg-[#DDC89D] text-[#0C2044] px-8 py-4 rounded-xl font-bold hover:bg-white transition-all shadow-lg"
+        >
+          Get Directions
+        </a>
+      </div>
+    </div>
+  </Section>
+
+  <!-- Our Team -->
+  <Section bg="white" padding="lg" id="team">
+    <SectionHeader
+      badge="Expert Instructors"
+      title="Meet Our Team"
+      description="Our instructors are internationally recognized experts with extensive clinical and teaching experience in prosthodontics, implantology, and dental laboratory technology."
+    />
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
+      {team.map((member: any) => (
+        <div class="group bg-white rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-100">
+          <!-- Photo -->
+          <div class="relative h-80 overflow-hidden">
+            <img
+              src={member.photo_url}
+              alt={member.name}
+              class="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500"
+            />
+            <div class="absolute inset-0 bg-gradient-to-t from-[#0C2044]/80 via-transparent to-transparent"></div>
+
+            <!-- Credentials Badge -->
+            <div class="absolute top-4 left-4">
+              <Badge variant="gold">{member.credentials}</Badge>
+            </div>
+
+            <!-- Name overlay -->
+            <div class="absolute bottom-0 left-0 right-0 p-6">
+              <h3 class="text-2xl font-bold text-white">{member.name}</h3>
+              <p class="text-[#DDC89D] font-semibold">{member.title}</p>
+            </div>
+          </div>
+
+          <!-- Info -->
+          <div class="p-6">
+            <div class="flex items-center gap-2 mb-4">
+              <svg class="w-5 h-5 text-[#13326A]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+              </svg>
+              <span class="text-[#4E6E82] font-medium">{member.role}</span>
+            </div>
+
+            <p class="text-[#4E6E82] leading-relaxed text-sm mb-4 line-clamp-4">
+              {member.short_bio || member.bio}
+            </p>
+
+            <a
+              href={`/speakers/${member.slug}`}
+              class="inline-flex items-center gap-2 text-[#0B52AC] font-semibold hover:text-[#13326A] transition-colors"
+            >
+              View Full Profile
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+              </svg>
+            </a>
+          </div>
+        </div>
+      ))}
+    </div>
+
+    {team.length > 3 && (
+      <div class="text-center mt-12">
+        <a
+          href="/speakers"
+          class="inline-flex items-center gap-2 bg-[#13326A] text-white px-8 py-4 rounded-xl font-bold hover:bg-[#0B52AC] transition-all"
+        >
+          View All Team Members
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+          </svg>
+        </a>
+      </div>
+    )}
+  </Section>
+
+  <!-- Testimonials -->
+  {testimonials && testimonials.length > 0 && (
+    <Section bg="gray" padding="lg">
+      <SectionHeader
+        badge="Success Stories"
+        title="What Our Students Say"
+      />
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+        {testimonials.map((testimonial: any) => (
+          <Card variant="white" padding="md" class="relative">
+            <svg class="absolute top-6 right-6 w-10 h-10 text-[#DDC89D]/40" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h3.983v10h-9.983z" />
+            </svg>
+
+            <div class="flex items-center gap-1 mb-6">
+              {[...Array(testimonial.rating || 5)].map(() => (
+                <svg class="w-5 h-5 text-[#DDC89D]" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                </svg>
+              ))}
+            </div>
+
+            <p class="text-[#4E6E82] mb-6 italic leading-relaxed">"{testimonial.content}"</p>
+
+            <div class="flex items-center gap-4">
+              {testimonial.author_photo_url ? (
+                <img
+                  src={testimonial.author_photo_url}
+                  alt={testimonial.author_name}
+                  class="w-14 h-14 rounded-full object-cover border-2 border-[#DDC89D]"
+                />
+              ) : (
+                <div class="w-14 h-14 bg-[#13326A] rounded-full flex items-center justify-center text-white font-bold text-lg">
+                  {testimonial.author_name.split(' ').map((n: string) => n[0]).join('')}
+                </div>
+              )}
+              <div>
+                <div class="font-bold text-[#13326A]">{testimonial.author_name}</div>
+                {testimonial.author_title && (
+                  <div class="text-sm text-[#4E6E82]">{testimonial.author_title}</div>
+                )}
+              </div>
+            </div>
+          </Card>
+        ))}
+      </div>
+    </Section>
+  )}
+
+  <!-- Accreditation -->
+  <Section bg="white" padding="md" borderTop>
+    <div class="max-w-4xl mx-auto">
+      <Card variant="gray" padding="lg">
+        <div class="flex flex-col md:flex-row items-center gap-8">
+          <div class="flex-shrink-0">
+            <div class="w-24 h-24 bg-[#13326A] rounded-2xl flex items-center justify-center">
+              <span class="text-white font-bold text-2xl">PACE</span>
+            </div>
+          </div>
+          <div class="text-center md:text-left">
+            <h3 class="text-xl font-bold text-[#13326A] mb-2">PACE Approved Provider</h3>
+            <p class="text-[#4E6E82] leading-relaxed">
+              {partners && partners.length > 0
+                ? partners[0].description
+                : "GPS Dental Training is a nationally approved PACE Program Provider for FAGD/MAGD credit. Approval does not imply acceptance by any regulatory authority or AGD endorsement. Approval term: 01/01/2024 to 12/31/2027."}
+            </p>
+          </div>
+        </div>
+      </Card>
+    </div>
+  </Section>
+
+  <!-- CTA Section -->
+  <CTASection
+    title="Ready to Advance Your Skills?"
+    description="Join our community of dental professionals and take your practice to the next level with our specialized training programs."
+    primaryAction={{ label: "Explore Courses", href: "/courses" }}
+    secondaryAction={{ label: "Monthly Seminars", href: "/monthly-seminars" }}
+    tertiaryAction={{ label: "Contact Us", href: "/contact" }}
+  />
+</PageLayout>
