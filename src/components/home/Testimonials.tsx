@@ -103,11 +103,14 @@ export default function Testimonials({
 
   if (testimonials.length === 0) return null;
 
+  // Show only first 3 testimonials in grid, or use slider for more
+  const displayTestimonials = testimonials.slice(0, 3);
+
   return (
-    <section className="py-20 bg-white overflow-hidden">
+    <section className="py-20 bg-[#F8F9FA]">
       <div className="container-wide">
         {/* Header */}
-        <div className="text-center mb-12">
+        <div className="text-center mb-16">
           <p className="text-[#DDC89D] font-semibold text-lg mb-2 uppercase tracking-wide">
             {subtitle}
           </p>
@@ -116,95 +119,65 @@ export default function Testimonials({
           </h2>
         </div>
 
-        {/* Testimonials Slider */}
-        <div className="relative max-w-4xl mx-auto">
-          {/* Quote Icon */}
-          <div className="absolute -top-4 left-0 md:left-8 text-[#DDC89D]/20">
-            <svg className="w-24 h-24 md:w-32 md:h-32" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h3.983v10h-9.983z" />
-            </svg>
-          </div>
+        {/* Testimonials Grid */}
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+          {displayTestimonials.map((testimonial) => (
+            <div key={testimonial.id} className="pt-8">
+              {/* Card with quote icon */}
+              <div className="relative bg-white rounded-2xl shadow-lg p-6 md:p-8 h-full">
+                {/* Quote Icon - positioned at top left, overlapping */}
+                <div className="absolute -top-6 left-6">
+                  <div className="w-14 h-14 bg-[#DDC89D] rounded-xl flex items-center justify-center shadow-md">
+                    <span className="text-[#0C2044] text-3xl font-serif leading-none">"</span>
+                  </div>
+                </div>
 
-          {/* Testimonial Content */}
-          <div className="relative z-10">
-            {testimonials.map((testimonial, index) => (
-              <div
-                key={testimonial.id}
-                className={`transition-all duration-500 ${
-                  index === currentIndex
-                    ? 'opacity-100 translate-x-0'
-                    : 'opacity-0 absolute inset-0 translate-x-8'
-                }`}
-                style={{ display: index === currentIndex ? 'block' : 'none' }}
-              >
-                <div className="text-center px-4 md:px-16">
+                <div className="pt-6">
                   {/* Rating */}
                   {testimonial.rating && (
-                    <div className="flex justify-center mb-6">
+                    <div className="flex gap-1 mb-4">
                       <StarRating rating={testimonial.rating} />
                     </div>
                   )}
 
                   {/* Quote */}
-                  <blockquote className="text-xl md:text-2xl lg:text-3xl text-[#333] leading-relaxed mb-8 font-light italic">
+                  <blockquote className="text-[#333] leading-relaxed mb-6 italic">
                     "{testimonial.quote}"
                   </blockquote>
 
                   {/* Author */}
-                  <div className="flex flex-col items-center">
+                  <div className="flex items-center gap-3 mt-auto">
                     {testimonial.image ? (
                       <img
                         src={testimonial.image}
                         alt={testimonial.author}
-                        className="w-16 h-16 rounded-full object-cover mb-4 border-4 border-[#DDC89D]/30"
+                        className="w-12 h-12 rounded-full object-cover border-2 border-[#0C2044]"
                       />
                     ) : (
-                      <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#173D84] to-[#0C2044] flex items-center justify-center mb-4 border-4 border-[#DDC89D]/30">
-                        <span className="text-white text-xl font-bold">
+                      <div className="w-12 h-12 rounded-full bg-[#0C2044] flex items-center justify-center flex-shrink-0">
+                        <span className="text-white text-sm font-bold">
                           {testimonial.author.split(' ').map(n => n[0]).join('')}
                         </span>
                       </div>
                     )}
-                    <h4 className="text-lg font-bold text-[#0C2044]">{testimonial.author}</h4>
-                    <p className="text-[#173D84] font-medium">{testimonial.title}</p>
-                    {testimonial.location && (
-                      <p className="text-gray-500 text-sm">{testimonial.location}</p>
-                    )}
+                    <div>
+                      <h4 className="font-bold text-[#0C2044]">{testimonial.author}</h4>
+                      <p className="text-[#666] text-sm">
+                        {testimonial.title}
+                        {testimonial.location && <span> • {testimonial.location}</span>}
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
-            ))}
-          </div>
-
-          {/* Navigation Arrows */}
-          {testimonials.length > 1 && (
-            <>
-              <button
-                onClick={prevSlide}
-                className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 md:-translate-x-12 w-12 h-12 bg-[#F2F2F2] hover:bg-[#0C2044] hover:text-white rounded-full flex items-center justify-center transition-all duration-300 shadow-lg"
-                aria-label="Previous testimonial"
-              >
-                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
-              <button
-                onClick={nextSlide}
-                className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 md:translate-x-12 w-12 h-12 bg-[#F2F2F2] hover:bg-[#0C2044] hover:text-white rounded-full flex items-center justify-center transition-all duration-300 shadow-lg"
-                aria-label="Next testimonial"
-              >
-                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
-            </>
-          )}
+            </div>
+          ))}
         </div>
 
-        {/* Dots Navigation */}
-        {testimonials.length > 1 && (
+        {/* Dots Navigation - for mobile slider mode */}
+        {testimonials.length > 3 && (
           <div className="flex justify-center gap-3 mt-8">
-            {testimonials.map((_, index) => (
+            {[0, 1, 2].map((index) => (
               <button
                 key={index}
                 onClick={() => goToSlide(index)}
@@ -213,7 +186,7 @@ export default function Testimonials({
                     ? 'bg-[#DDC89D] w-10'
                     : 'bg-gray-300 hover:bg-gray-400 w-3'
                 }`}
-                aria-label={`Go to testimonial ${index + 1}`}
+                aria-label={`Go to testimonial set ${index + 1}`}
               />
             ))}
           </div>

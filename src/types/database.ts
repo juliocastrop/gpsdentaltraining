@@ -534,3 +534,47 @@ export interface InsertCECredit {
   transaction_type?: CreditTransactionType;
   notes?: string;
 }
+
+// ============================================================
+// Site Content Types
+// ============================================================
+
+// Icon keys available for features
+export type FeatureIconKey =
+  | 'academic'
+  | 'tools'
+  | 'certificate'
+  | 'users'
+  | 'star'
+  | 'check'
+  | 'globe'
+  | 'clock'
+  | 'calendar'
+  | 'location'
+  | 'phone'
+  | 'email'
+  | 'heart'
+  | 'shield'
+  | 'lightning'
+  | 'trophy';
+
+export interface SiteFeature {
+  id: string;
+  title: string;
+  description: string;
+  icon: FeatureIconKey;
+  section: string;
+  sort_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface InsertSiteFeature {
+  title: string;
+  description: string;
+  icon?: FeatureIconKey;
+  section?: string;
+  sort_order?: number;
+  is_active?: boolean;
+}

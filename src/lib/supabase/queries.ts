@@ -27,6 +27,8 @@ import type {
   InsertAttendance,
   InsertCECredit,
   TicketAvailabilityInfo,
+  SiteFeature,
+  InsertSiteFeature,
 } from '../../types/database';
 
 // ============================================================
@@ -1825,4 +1827,111 @@ export async function duplicateCertificateTemplate(templateId: string, newName: 
     slug: newSlug,
     is_default: false, // Duplicates are never default
   });
+}
+
+// ============================================================
+// SITE FEATURES
+// ============================================================
+
+/**
+ * Get site features by section
+ */
+export async function getSiteFeaturesBySection(section: string) {
+  const { data, error } = await supabaseAdmin
+    .from('site_features')
+    .select('*')
+    .eq('section', section)
+    .eq('is_active', true)
+    .order('sort_order', { ascending: true });
+
+  if (error) throw error;
+  return data as SiteFeature[];
+}
+
+/**
+ * Get all site features
+ */
+export async function getAllSiteFeatures() {
+  const { data, error } = await supabaseAdmin
+    .from('site_features')
+    .select('*')
+    .order('section', { ascending: true })
+    .order('sort_order', { ascending: true });
+
+  if (error) throw error;
+  return data as SiteFeature[];
+}
+
+/**
+ * Get site feature by ID
+ */
+export async function getSiteFeatureById(featureId: string) {
+  const { data, error } = await supabaseAdmin
+    .from('site_features')
+    .select('*')
+    .eq('id', featureId)
+    .single();
+
+  if (error) {
+    if (error.code === 'PGRST116') return null;
+    throw error;
+  }
+  return data as SiteFeature;
+}
+
+/**
+ * Create site feature
+ */
+export async function createSiteFeature(featureData: InsertSiteFeature) {
+  const { data, error } = await supabaseAdmin
+    .from('site_features')
+    .insert(featureData)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data as SiteFeature;
+}
+
+/**
+ * Update site feature
+ */
+export async function updateSiteFeature(featureId: string, featureData: Partial<SiteFeature>) {
+  const { data, error } = await supabaseAdmin
+    .from('site_features')
+    .update(featureData)
+    .eq('id', featureId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data as SiteFeature;
+}
+
+/**
+ * Delete site feature
+ */
+export async function deleteSiteFeature(featureId: string) {
+  const { error } = await supabaseAdmin
+    .from('site_features')
+    .delete()
+    .eq('id', featureId);
+
+  if (error) throw error;
+}
+
+/**
+ * Reorder site features within a section
+ */
+export async function reorderSiteFeatures(section: string, orderedIds: string[]) {
+  // Update sort_order for each feature
+  const updates = orderedIds.map((id, index) =>
+    supabaseAdmin
+      .from('site_features')
+      .update({ sort_order: index + 1 })
+      .eq('id', id)
+      .eq('section', section)
+  );
+
+  await Promise.all(updates);
 }
