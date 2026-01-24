@@ -2,6 +2,10 @@
 /**
  * Homepage - GPS Dental Training
  * Main landing page with hero, courses, testimonials, and more
+ *
+ * Content Priority:
+ * 1. Strapi for CMS content (hero, events, testimonials, features)
+ * 2. Supabase as fallback
  */
 import PageLayout from '../layouts/PageLayout.astro';
 import Section from '../components/ui/Section.astro';
@@ -14,6 +18,14 @@ import HeroSlider from '../components/home/HeroSlider';
 import CourseCarousel from '../components/home/CourseCarousel';
 import EventCalendar from '../components/home/EventCalendar';
 import {
+  getHeroSlides,
+  getEvents,
+  getSpeakers,
+  getTestimonials,
+  getSiteFeatures,
+  getMediaUrl,
+} from '../lib/strapi/client';
+import {
   getUpcomingEvents,
   getFeaturedEvent,
   getFeaturedSpeakers,
@@ -25,7 +37,7 @@ import {
 } from '../lib/supabase/queries';
 import type { SiteFeature } from '../types/database';
 
-// Fetch all data
+// Fetch all data - try Strapi first, fall back to Supabase
 let upcomingEvents: any[] = [];
 let featuredEvent: any = null;
 let speakers: any[] = [];
@@ -36,18 +48,122 @@ let heroSlidesFromDB: any[] = [];
 let whyGpsFeatures: SiteFeature[] = [];
 
 try {
-  [upcomingEvents, featuredEvent, speakers, testimonials, partners, seminars, heroSlidesFromDB, whyGpsFeatures] = await Promise.all([
-    getUpcomingEvents(6),
-    getFeaturedEvent(),
-    getFeaturedSpeakers(4),
-    getFeaturedTestimonials(3),
+  // Try Strapi for CMS content
+  const [strapiHeroSlides, strapiEventsResult, strapiSpeakers, strapiTestimonials, strapiFeatures] = await Promise.all([
+    getHeroSlides().catch(() => []),
+    getEvents({ upcoming: true, limit: 6 }).catch(() => ({ events: [] })),
+    getSpeakers({ featured: true, limit: 4 }).catch(() => []),
+    getTestimonials({ featured: true, limit: 3 }).catch(() => []),
+    getSiteFeatures('why-gps').catch(() => []),
+  ]);
+
+  // Use Strapi data if available, otherwise fall back to Supabase
+  if (strapiHeroSlides && strapiHeroSlides.length > 0) {
+    heroSlidesFromDB = strapiHeroSlides.map((slide: any) => ({
+      id: slide.id,
+      title: slide.title,
+      subtitle: slide.subtitle,
+      description: slide.description,
+      image_url: getMediaUrl(slide.image),
+      mobile_image_url: getMediaUrl(slide.mobileImage),
+      cta_text: slide.ctaText,
+      cta_link: slide.ctaLink,
+      cta_secondary_text: slide.ctaSecondaryText,
+      cta_secondary_link: slide.ctaSecondaryLink,
+      text_position: slide.textPosition,
+      overlay_opacity: slide.overlayOpacity,
+      sort_order: slide.sortOrder,
+    }));
+  } else {
+    heroSlidesFromDB = await getActiveHeroSlides();
+  }
+
+  if (strapiEventsResult.events && strapiEventsResult.events.length > 0) {
+    upcomingEvents = strapiEventsResult.events.map((e: any) => ({
+      id: String(e.id),
+      title: e.title,
+      slug: e.slug,
+      description: e.description,
+      start_date: e.startDate,
+      end_date: e.endDate,
+      venue: e.venue,
+      ce_credits: e.ceCredits || 0,
+      featured_image_url: getMediaUrl(e.featuredImage),
+      is_featured: e.isFeatured,
+    }));
+    featuredEvent = upcomingEvents.find((e: any) => e.is_featured) || upcomingEvents[0];
+  } else {
+    [upcomingEvents, featuredEvent] = await Promise.all([
+      getUpcomingEvents(6),
+      getFeaturedEvent(),
+    ]);
+  }
+
+  if (strapiSpeakers && strapiSpeakers.length > 0) {
+    speakers = strapiSpeakers.map((s: any) => ({
+      id: String(s.id),
+      name: s.name,
+      title: s.title,
+      bio: s.shortBio || s.bio,
+      photo_url: getMediaUrl(s.photo),
+    }));
+  } else {
+    speakers = await getFeaturedSpeakers(4);
+  }
+
+  if (strapiTestimonials && strapiTestimonials.length > 0) {
+    testimonials = strapiTestimonials.map((t: any) => ({
+      id: t.id,
+      quote: t.quote,
+      author_name: t.author,
+      author_title: t.title,
+      author_location: t.location,
+      author_photo_url: getMediaUrl(t.image),
+      rating: t.rating,
+    }));
+  } else {
+    testimonials = await getFeaturedTestimonials(3);
+  }
+
+  if (strapiFeatures && strapiFeatures.length > 0) {
+    whyGpsFeatures = strapiFeatures.map((f: any) => ({
+      id: f.id,
+      title: f.title,
+      description: f.description,
+      icon: f.icon,
+      section: f.section,
+      link: f.link,
+      link_text: f.linkText,
+      sort_order: f.sortOrder,
+      is_active: f.isActive,
+    }));
+  } else {
+    whyGpsFeatures = await getSiteFeaturesBySection('why-gps');
+  }
+
+  // Always get these from Supabase (no Strapi equivalent yet)
+  [partners, seminars] = await Promise.all([
     getFeaturedPartners(6),
     getActiveSeminars(),
-    getActiveHeroSlides(),
-    getSiteFeaturesBySection('why-gps'),
   ]);
+
 } catch (error) {
   console.error('Error fetching homepage data:', error);
+  // Full fallback to Supabase
+  try {
+    [upcomingEvents, featuredEvent, speakers, testimonials, partners, seminars, heroSlidesFromDB, whyGpsFeatures] = await Promise.all([
+      getUpcomingEvents(6),
+      getFeaturedEvent(),
+      getFeaturedSpeakers(4),
+      getFeaturedTestimonials(3),
+      getFeaturedPartners(6),
+      getActiveSeminars(),
+      getActiveHeroSlides(),
+      getSiteFeaturesBySection('why-gps'),
+    ]);
+  } catch (fallbackError) {
+    console.error('Error fetching homepage data from Supabase:', fallbackError);
+  }
 }
 
 // Transform events for carousel

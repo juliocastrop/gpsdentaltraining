@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
-import { addToWaitlist, checkWaitlistStatus } from '../../../lib/supabase/queries';
+import { addToWaitlist, checkWaitlistStatus, getEventById } from '../../../lib/supabase/queries';
+import { sendWaitlistConfirmationEmail } from '../../../lib/email/sender';
 
 export const POST: APIRoute = async ({ request }) => {
   try {
@@ -47,15 +48,29 @@ export const POST: APIRoute = async ({ request }) => {
     // Add to waitlist
     const waitlistEntry = await addToWaitlist({
       event_id: eventId,
-      ticket_type_id: ticketTypeId || null, // Optional - if not provided, position is calculated by event
+      ticket_type_id: ticketTypeId || null,
       email: email.toLowerCase().trim(),
       first_name: firstName?.trim() || null,
       last_name: lastName?.trim() || null,
       phone: phone?.trim() || null,
     });
 
-    // TODO: Send confirmation email via Resend
-    // await sendWaitlistConfirmationEmail(waitlistEntry);
+    // Get event details for confirmation email
+    const event = await getEventById(eventId);
+
+    // Send confirmation email
+    if (event) {
+      try {
+        await sendWaitlistConfirmationEmail(email, {
+          firstName: firstName?.trim(),
+          eventTitle: event.title,
+          position: waitlistEntry.position,
+        });
+      } catch (emailError) {
+        console.error('Failed to send waitlist confirmation email:', emailError);
+        // Don't fail the request if email fails
+      }
+    }
 
     return new Response(JSON.stringify({
       success: true,

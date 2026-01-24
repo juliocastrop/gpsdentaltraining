@@ -7,7 +7,17 @@ import {
   getOrderByStripeSession,
   getTicketTypeById,
   getEventById,
+  getSeminarWithFullData,
+  createSeminarRegistration,
+  getUserSeminarRegistration,
+  getUpcomingSeminarSessions,
 } from '../../../lib/supabase/queries';
+import { generateAndStoreQRCode } from '../../../lib/qrcode/generator';
+import { generateSeminarQRCodeWithString } from '../../../lib/qrcode/seminar';
+import {
+  sendTicketConfirmationEmail,
+  sendSeminarRegistrationEmail,
+} from '../../../lib/email/sender';
 import type Stripe from 'stripe';
 
 const webhookSecret = import.meta.env.STRIPE_WEBHOOK_SECRET;
@@ -76,7 +86,14 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     // Order doesn't exist, continue creating
   }
 
-  // Parse items from metadata
+  // Check if this is a seminar purchase
+  const purchaseType = session.metadata?.purchase_type;
+  if (purchaseType === 'seminar') {
+    await handleSeminarPurchase(session);
+    return;
+  }
+
+  // Parse items from metadata (for event tickets)
   const itemsJson = session.metadata?.items;
   if (!itemsJson) {
     throw new Error('No items in session metadata');
@@ -132,12 +149,153 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
       console.log('Created ticket:', ticket.ticket_code);
 
-      // TODO: Generate QR code for ticket
-      // TODO: Send ticket email with Resend
+      // Generate QR code for ticket
+      let qrCodeUrl = '';
+      try {
+        const qrResult = await generateAndStoreQRCode(
+          ticket.id,
+          ticket.ticket_code,
+          item.eventId
+        );
+        qrCodeUrl = qrResult.qrCodeUrl;
+        console.log('Generated QR code for ticket:', ticket.ticket_code, qrCodeUrl);
+      } catch (qrError) {
+        console.error('Failed to generate QR code for ticket:', ticket.ticket_code, qrError);
+        // Continue even if QR generation fails - ticket is still valid
+      }
+
+      // Send ticket confirmation email
+      const attendeeEmail = session.customer_details?.email || session.customer_email;
+      if (attendeeEmail) {
+        try {
+          const emailResult = await sendTicketConfirmationEmail(attendeeEmail, {
+            attendeeName: session.customer_details?.name || 'Guest',
+            eventTitle: event.title,
+            eventDate: new Date(event.start_date).toLocaleDateString('en-US', {
+              weekday: 'long',
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric',
+            }),
+            eventVenue: event.venue || 'TBD',
+            ticketCode: ticket.ticket_code,
+            ticketType: ticketType.name,
+            qrCodeUrl: qrCodeUrl,
+            orderNumber: order.order_number,
+          });
+          console.log('Sent ticket email:', emailResult.success ? 'success' : emailResult.error);
+        } catch (emailError) {
+          console.error('Failed to send ticket email:', emailError);
+          // Continue even if email fails - ticket is still valid
+        }
+      }
     }
   }
 
   console.log('Order and tickets created successfully for session:', session.id);
+}
+
+/**
+ * Handle seminar purchase - create registration with QR code
+ */
+async function handleSeminarPurchase(session: Stripe.Checkout.Session) {
+  console.log('Processing seminar purchase:', session.id);
+
+  const seminarId = session.metadata?.seminar_id;
+  const userId = session.metadata?.user_id;
+
+  if (!seminarId) {
+    throw new Error('No seminar_id in session metadata');
+  }
+
+  // Calculate total from session
+  const total = (session.amount_total || 0) / 100;
+
+  // Create order record
+  const order = await createOrder({
+    user_id: userId || undefined,
+    stripe_session_id: session.id,
+    billing_email: session.customer_details?.email || session.customer_email || '',
+    billing_name: session.customer_details?.name || undefined,
+    total,
+  });
+
+  // Update order status
+  if (session.payment_intent) {
+    await updateOrderStatus(order.id, 'completed', 'paid');
+  }
+
+  // Check if user already has a registration
+  if (userId) {
+    const existingReg = await getUserSeminarRegistration(userId, seminarId);
+    if (existingReg) {
+      console.log('User already has registration for seminar:', seminarId);
+      return;
+    }
+  }
+
+  // Get upcoming sessions to determine start date
+  const upcomingSessions = await getUpcomingSeminarSessions(seminarId, 1);
+  const startSessionDate = upcomingSessions.length > 0
+    ? upcomingSessions[0].session_date
+    : null;
+
+  // Generate QR code for seminar registration
+  const { qrCode: qrCodeString, qrCodeUrl } = await generateSeminarQRCodeWithString();
+
+  // Create seminar registration
+  if (userId) {
+    const registration = await createSeminarRegistration({
+      user_id: userId,
+      seminar_id: seminarId,
+      order_id: order.id,
+      start_session_date: startSessionDate || undefined,
+      qr_code: qrCodeString,
+      qr_code_url: qrCodeUrl,
+    });
+
+    console.log('Created seminar registration:', registration.id, 'QR:', qrCodeString);
+
+    // Send seminar registration confirmation email
+    const attendeeEmail = session.customer_details?.email || session.customer_email;
+    if (attendeeEmail) {
+      try {
+        // Get seminar details for email
+        const seminar = await getSeminarWithFullData(seminarId);
+
+        if (seminar) {
+          const emailResult = await sendSeminarRegistrationEmail(attendeeEmail, {
+            attendeeName: session.customer_details?.name || 'Member',
+            seminarTitle: seminar.title || 'GPS Monthly Seminars',
+            seminarYear: seminar.year || new Date().getFullYear(),
+            totalSessions: 10,
+            creditsPerSession: 2,
+            totalCredits: 20,
+            qrCodeUrl: qrCodeUrl,
+            qrCode: qrCodeString,
+            orderNumber: order.order_number,
+            firstSessionDate: startSessionDate
+              ? new Date(startSessionDate).toLocaleDateString('en-US', {
+                  weekday: 'long',
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                })
+              : undefined,
+            price: total,
+          });
+          console.log('Sent seminar registration email:', emailResult.success ? 'success' : emailResult.error);
+        }
+      } catch (emailError) {
+        console.error('Failed to send seminar registration email:', emailError);
+        // Continue even if email fails - registration is still valid
+      }
+    }
+  } else {
+    console.log('No user_id for seminar purchase - registration will need to be created manually or via guest linking');
+  }
+
+  console.log('Seminar purchase processed successfully for session:', session.id);
 }
 
 async function handleRefund(charge: Stripe.Charge) {

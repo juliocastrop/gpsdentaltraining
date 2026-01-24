@@ -26,7 +26,8 @@ import Footer from '../../components/layout/Footer';
 import CountdownTimer from '../../components/events/CountdownTimer';
 import TicketSelector from '../../components/tickets/TicketSelector';
 import WaitlistForm from '../../components/tickets/WaitlistForm';
-import { getEventWithSpeakers, getEventAvailability } from '../../lib/supabase/queries';
+import { getEventBySlug, getMediaUrl } from '../../lib/strapi/client';
+import { getEventWithSpeakers, getEventAvailability, getEventBySlug as getSupabaseEventBySlug } from '../../lib/supabase/queries';
 import type { ScheduleTopic, Speaker } from '../../types/database';
 
 const { slug } = Astro.params;
@@ -35,12 +36,62 @@ if (!slug) {
   return Astro.redirect('/courses');
 }
 
-let event;
-let availability;
+let event: any;
+let availability: any;
+let eventId: string;
 
+// Try Strapi first, then fall back to Supabase
 try {
-  event = await getEventWithSpeakers(slug);
-  availability = await getEventAvailability(event.id);
+  const strapiEvent = await getEventBySlug(slug);
+
+  if (strapiEvent) {
+    // Transform Strapi event to match expected format
+    event = {
+      id: String(strapiEvent.id),
+      title: strapiEvent.title,
+      slug: strapiEvent.slug,
+      description: strapiEvent.description,
+      start_date: strapiEvent.startDate,
+      end_date: strapiEvent.endDate,
+      venue: strapiEvent.venue,
+      address: strapiEvent.address,
+      ce_credits: strapiEvent.ceCredits || 0,
+      capacity: strapiEvent.capacity,
+      featured_image_url: getMediaUrl(strapiEvent.featuredImage),
+      gallery_images: strapiEvent.galleryImages?.data?.map((img: any) => getMediaUrl({ data: img })).filter(Boolean) || [],
+      video_url: null,
+      schedule_topics: strapiEvent.scheduleTopics,
+      learning_objectives: strapiEvent.learningObjectives,
+      speakers: strapiEvent.speakers?.data?.map((s: any) => ({
+        id: String(s.id),
+        name: s.attributes.name,
+        slug: s.attributes.slug,
+        title: s.attributes.title,
+        bio: s.attributes.bio,
+        photo_url: getMediaUrl(s.attributes.photo),
+        social_links: {
+          linkedin: s.attributes.linkedIn,
+          twitter: s.attributes.twitter,
+          website: s.attributes.website,
+        },
+      })) || [],
+    };
+
+    // Get Supabase event ID for transactional data (tickets, availability)
+    try {
+      const supabaseEvent = await getSupabaseEventBySlug(slug);
+      eventId = supabaseEvent?.id || strapiEvent.id.toString();
+    } catch {
+      eventId = strapiEvent.id.toString();
+    }
+  } else {
+    // Fall back to Supabase
+    event = await getEventWithSpeakers(slug);
+    eventId = event.id;
+  }
+
+  // Always get availability from Supabase (transactional data)
+  availability = await getEventAvailability(eventId);
 } catch (error) {
   console.error('Error loading event:', error);
   return Astro.redirect('/courses');

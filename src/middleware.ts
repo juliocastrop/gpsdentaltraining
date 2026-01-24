@@ -32,7 +32,8 @@ export const onRequest = clerkMiddleware((auth, context) => {
     }
 
     // Check if user has admin role in their metadata
-    const userRole = sessionClaims?.public_metadata?.role as string | undefined;
+    const publicMetadata = sessionClaims?.public_metadata as { role?: string } | undefined;
+    const userRole = publicMetadata?.role;
     if (userRole !== 'admin' && userRole !== 'staff') {
       // Redirect to home if not an admin
       return new Response(null, {

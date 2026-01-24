@@ -16,6 +16,11 @@ export {
   getSponsors,
   getSeminars,
   getSeminarBySlug,
+  getHeroSlides,
+  getPages,
+  getPageBySlug,
+  getSiteFeatures,
+  getEventCategories,
   getMediaUrl,
   getMediaUrls,
   STRAPI_URL,
@@ -30,6 +35,10 @@ export type {
   Testimonial,
   Sponsor,
   Seminar,
+  HeroSlide,
+  Page,
+  SiteFeature,
+  EventCategory,
 } from './client';
 
 // Transformers

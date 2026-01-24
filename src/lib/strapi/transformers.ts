@@ -5,13 +5,11 @@
 
 import {
   getMediaUrl,
-  getMediaUrls,
   type HomepageData,
   type Event,
   type Speaker,
   type Testimonial,
   type Sponsor,
-  STRAPI_URL,
 } from './client';
 
 // ============================================
@@ -147,7 +145,7 @@ export function transformEvents(events: Event[]): CourseCardProps[] {
     id: String(event.id),
     title: event.title,
     slug: event.slug,
-    description: event.excerpt || event.description?.substring(0, 150),
+    description: event.shortDescription || event.description?.substring(0, 150),
     startDate: event.startDate,
     endDate: event.endDate,
     venue: event.venue,
@@ -255,7 +253,7 @@ export function transformSpeakers(speakers: Speaker[]): SpeakerCardProps[] {
     id: String(speaker.id),
     name: speaker.name,
     title: speaker.title,
-    specialty: speaker.specialty,
+    specialty: speaker.credentials || (speaker.specialties?.[0] ?? undefined),
     bio: speaker.shortBio || speaker.bio?.substring(0, 200),
     image: getMediaUrl(speaker.photo) || undefined,
     slug: speaker.slug,
@@ -304,10 +302,10 @@ export function transformTestimonials(
   return testimonials.map((testimonial) => ({
     id: String(testimonial.id),
     quote: testimonial.quote,
-    author: testimonial.authorName,
-    title: testimonial.authorTitle,
-    location: testimonial.authorLocation,
-    image: getMediaUrl(testimonial.authorPhoto) || undefined,
+    author: testimonial.author,
+    title: testimonial.title,
+    location: testimonial.location,
+    image: getMediaUrl(testimonial.image) || undefined,
     rating: testimonial.rating || 5,
   }));
 }
@@ -495,6 +493,6 @@ export function transformSEO(
     title: seo?.metaTitle || defaults.title,
     description: seo?.metaDescription || defaults.description,
     ogImage: getMediaUrl(seo?.ogImage) || undefined,
-    noIndex: seo?.noIndex || false,
+    noIndex: false,
   };
 }

@@ -358,33 +358,33 @@ export interface Event {
   title: string;
   slug: string;
   description?: string;
-  excerpt?: string;
+  shortDescription?: string;
   featuredImage?: any;
-  gallery?: any;
+  galleryImages?: any;
   startDate: string;
   endDate?: string;
   venue?: string;
   address?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
   ceCredits?: number;
   capacity?: number;
-  status: 'draft' | 'published' | 'cancelled';
   speakers?: any;
   category?: any;
   scheduleTopics?: Array<{
     day: number;
     time?: string;
-    title: string;
+    topic: string;
     description?: string;
-    speaker?: any;
   }>;
-  learningObjectives?: Array<{
-    objective: string;
-  }>;
-  seo?: {
-    metaTitle?: string;
-    metaDescription?: string;
-    ogImage?: any;
-  };
+  learningObjectives?: string[];
+  requirements?: string;
+  whatToExpect?: string;
+  isFeatured?: boolean;
+  eventType?: 'course' | 'workshop' | 'conference' | 'webinar';
+  seoTitle?: string;
+  seoDescription?: string;
 }
 
 export async function getEvents(options?: {
@@ -455,16 +455,21 @@ export interface Speaker {
   name: string;
   slug: string;
   title?: string;
-  specialty?: string;
+  credentials?: string;
   bio?: string;
   shortBio?: string;
   photo?: any;
   email?: string;
-  socialLinks?: Array<{
-    platform: string;
-    url: string;
-  }>;
-  featured?: boolean;
+  phone?: string;
+  website?: string;
+  linkedIn?: string;
+  twitter?: string;
+  facebook?: string;
+  instagram?: string;
+  specialties?: string[];
+  events?: any;
+  isFeatured?: boolean;
+  sortOrder?: number;
 }
 
 export async function getSpeakers(options?: {
@@ -475,12 +480,13 @@ export async function getSpeakers(options?: {
     const filters: any = {};
 
     if (options?.featured) {
-      filters.featured = { $eq: true };
+      filters.isFeatured = { $eq: true };
     }
 
     const response = await fetchStrapi<StrapiCollectionResponse<Speaker>>('/speakers', {
       populate: '*',
       filters,
+      sort: 'sortOrder:asc',
       pagination: {
         pageSize: options?.limit || 100,
       },
@@ -515,12 +521,15 @@ export async function getSpeakerBySlug(slug: string): Promise<Speaker | null> {
 export interface Testimonial {
   id: number;
   quote: string;
-  authorName: string;
-  authorTitle?: string;
-  authorLocation?: string;
-  authorPhoto?: any;
+  author: string;
+  title?: string;
+  company?: string;
+  location?: string;
   rating: number;
-  featured?: boolean;
+  image?: any;
+  event?: any;
+  isFeatured?: boolean;
+  sortOrder?: number;
 }
 
 export async function getTestimonials(options?: {
@@ -531,13 +540,13 @@ export async function getTestimonials(options?: {
     const filters: any = {};
 
     if (options?.featured) {
-      filters.featured = { $eq: true };
+      filters.isFeatured = { $eq: true };
     }
 
     const response = await fetchStrapi<StrapiCollectionResponse<Testimonial>>('/testimonials', {
       populate: '*',
       filters,
-      sort: 'publishedAt:desc',
+      sort: 'sortOrder:asc',
       pagination: {
         pageSize: options?.limit || 10,
       },
@@ -579,11 +588,14 @@ export interface Seminar {
   slug: string;
   year: number;
   description?: string;
+  shortDescription?: string;
   featuredImage?: any;
   price: number;
   totalSessions: number;
   creditsPerSession: number;
-  moderator?: any;
+  venue?: string;
+  address?: string;
+  moderators?: any;
   sessions?: Array<{
     sessionNumber: number;
     date: string;
@@ -592,17 +604,26 @@ export interface Seminar {
     topic?: string;
     description?: string;
   }>;
-  status: 'upcoming' | 'active' | 'completed';
+  benefits?: string[];
+  requirements?: string;
+  isFeatured?: boolean;
+  seoTitle?: string;
+  seoDescription?: string;
 }
 
 export async function getSeminars(options?: {
-  status?: 'upcoming' | 'active' | 'completed';
+  year?: number;
+  featured?: boolean;
 }): Promise<Seminar[]> {
   try {
     const filters: any = {};
 
-    if (options?.status) {
-      filters.status = { $eq: options.status };
+    if (options?.year) {
+      filters.year = { $eq: options.year };
+    }
+
+    if (options?.featured) {
+      filters.isFeatured = { $eq: true };
     }
 
     const response = await fetchStrapi<StrapiCollectionResponse<Seminar>>('/seminars', {
@@ -634,6 +655,165 @@ export async function getSeminarBySlug(slug: string): Promise<Seminar | null> {
   } catch (error) {
     console.error('Error fetching seminar by slug:', error);
     return null;
+  }
+}
+
+// ============================================
+// HERO SLIDES
+// ============================================
+
+export interface HeroSlide {
+  id: number;
+  title: string;
+  subtitle?: string;
+  description?: string;
+  image: any;
+  mobileImage?: any;
+  ctaText?: string;
+  ctaLink?: string;
+  ctaSecondaryText?: string;
+  ctaSecondaryLink?: string;
+  textPosition?: 'left' | 'center' | 'right';
+  overlayOpacity?: number;
+  sortOrder?: number;
+  isActive?: boolean;
+}
+
+export async function getHeroSlides(): Promise<HeroSlide[]> {
+  try {
+    const response = await fetchStrapi<StrapiCollectionResponse<HeroSlide>>('/hero-slides', {
+      populate: '*',
+      filters: {
+        isActive: { $eq: true },
+      },
+      sort: 'sortOrder:asc',
+    });
+
+    return response.data?.map(flattenAttributes) || [];
+  } catch (error) {
+    console.error('Error fetching hero slides:', error);
+    return [];
+  }
+}
+
+// ============================================
+// PAGES
+// ============================================
+
+export interface Page {
+  id: number;
+  title: string;
+  slug: string;
+  content?: string;
+  excerpt?: string;
+  featuredImage?: any;
+  template?: 'default' | 'about' | 'contact' | 'landing';
+  sections?: any;
+  seoTitle?: string;
+  seoDescription?: string;
+  seoImage?: any;
+  sortOrder?: number;
+  showInNav?: boolean;
+}
+
+export async function getPages(): Promise<Page[]> {
+  try {
+    const response = await fetchStrapi<StrapiCollectionResponse<Page>>('/pages', {
+      populate: '*',
+      sort: 'sortOrder:asc',
+    });
+
+    return response.data?.map(flattenAttributes) || [];
+  } catch (error) {
+    console.error('Error fetching pages:', error);
+    return [];
+  }
+}
+
+export async function getPageBySlug(slug: string): Promise<Page | null> {
+  try {
+    const response = await fetchStrapi<StrapiCollectionResponse<Page>>('/pages', {
+      populate: 'deep',
+      filters: {
+        slug: { $eq: slug },
+      },
+    });
+
+    if (response.data?.length > 0) {
+      return flattenAttributes(response.data[0]);
+    }
+    return null;
+  } catch (error) {
+    console.error('Error fetching page by slug:', error);
+    return null;
+  }
+}
+
+// ============================================
+// SITE FEATURES
+// ============================================
+
+export interface SiteFeature {
+  id: number;
+  title: string;
+  description: string;
+  icon?: string;
+  section?: 'why-gps' | 'benefits' | 'services' | 'values';
+  link?: string;
+  linkText?: string;
+  sortOrder?: number;
+  isActive?: boolean;
+}
+
+export async function getSiteFeatures(section?: string): Promise<SiteFeature[]> {
+  try {
+    const filters: any = {
+      isActive: { $eq: true },
+    };
+
+    if (section) {
+      filters.section = { $eq: section };
+    }
+
+    const response = await fetchStrapi<StrapiCollectionResponse<SiteFeature>>('/site-features', {
+      populate: '*',
+      filters,
+      sort: 'sortOrder:asc',
+    });
+
+    return response.data?.map(flattenAttributes) || [];
+  } catch (error) {
+    console.error('Error fetching site features:', error);
+    return [];
+  }
+}
+
+// ============================================
+// EVENT CATEGORIES
+// ============================================
+
+export interface EventCategory {
+  id: number;
+  name: string;
+  slug: string;
+  description?: string;
+  color?: string;
+  icon?: string;
+  events?: any;
+  sortOrder?: number;
+}
+
+export async function getEventCategories(): Promise<EventCategory[]> {
+  try {
+    const response = await fetchStrapi<StrapiCollectionResponse<EventCategory>>('/event-categories', {
+      populate: '*',
+      sort: 'sortOrder:asc',
+    });
+
+    return response.data?.map(flattenAttributes) || [];
+  } catch (error) {
+    console.error('Error fetching event categories:', error);
+    return [];
   }
 }
 

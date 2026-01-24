@@ -596,11 +596,12 @@ export async function getNextInWaitlist(ticketTypeId: string) {
 // ============================================================
 
 export async function createCertificate(certificateData: {
-  ticket_id?: string;
-  user_id: string;
+  certificate_code: string;
+  ticket_id?: string | null;
+  user_id?: string | null;
   event_id: string;
   attendee_name: string;
-  ce_credits?: number;
+  pdf_url?: string;
 }) {
   const { data, error } = await supabaseAdmin
     .from('certificates')
@@ -610,6 +611,48 @@ export async function createCertificate(certificateData: {
 
   if (error) throw error;
   return data as Certificate;
+}
+
+export async function getCertificateById(certificateId: string) {
+  const { data, error } = await supabaseAdmin
+    .from('certificates')
+    .select(`
+      *,
+      event:events(id, title, slug, start_date, end_date, venue, ce_credits),
+      ticket:tickets(id, ticket_code, attendee_email, attendee_name),
+      user:users(id, email, first_name, last_name)
+    `)
+    .eq('id', certificateId)
+    .single();
+
+  if (error) {
+    if (error.code === 'PGRST116') return null;
+    throw error;
+  }
+  return data;
+}
+
+export async function getCertificateByTicket(ticketId: string) {
+  const { data, error } = await supabaseAdmin
+    .from('certificates')
+    .select('*')
+    .eq('ticket_id', ticketId)
+    .single();
+
+  if (error) {
+    if (error.code === 'PGRST116') return null;
+    throw error;
+  }
+  return data as Certificate;
+}
+
+export async function updateCertificateSentAt(certificateId: string) {
+  const { error } = await supabaseAdmin
+    .from('certificates')
+    .update({ sent_at: new Date().toISOString() })
+    .eq('id', certificateId);
+
+  if (error) throw error;
 }
 
 export async function updateCertificatePDF(certificateId: string, pdfUrl: string) {
@@ -935,11 +978,11 @@ export async function getActiveHeroSlides(checkSchedule = true): Promise<HeroSli
     if (slide.linked_event && slide.linked_event_id) {
       const event = slide.linked_event as Event;
       if (!result.title) result.title = event.title;
-      if (!result.description) result.description = event.description;
-      if (!result.image_url) result.image_url = event.featured_image_url;
+      if (!result.description) result.description = event.description ?? undefined;
+      if (!result.image_url) result.image_url = event.featured_image_url ?? undefined;
       if (!result.cta_link) result.cta_link = `/courses/${event.slug}`;
       if (result.ce_credits === null || result.ce_credits === undefined) {
-        result.ce_credits = event.ce_credits;
+        result.ce_credits = event.ce_credits ?? undefined;
       }
     }
 
@@ -947,8 +990,8 @@ export async function getActiveHeroSlides(checkSchedule = true): Promise<HeroSli
     if (slide.linked_seminar && slide.linked_seminar_id) {
       const seminar = slide.linked_seminar as Seminar;
       if (!result.title) result.title = seminar.title;
-      if (!result.description) result.description = seminar.description;
-      if (!result.image_url) result.image_url = seminar.featured_image_url;
+      if (!result.description) result.description = seminar.description ?? undefined;
+      if (!result.image_url) result.image_url = seminar.featured_image_url ?? undefined;
       if (!result.cta_link) result.cta_link = `/monthly-seminars/${seminar.slug}`;
     }
 
@@ -1626,6 +1669,49 @@ export async function cancelWaitlistEntry(waitlistId: string) {
 }
 
 /**
+ * Get waitlist entry by ID
+ */
+export async function getWaitlistEntryById(waitlistId: string) {
+  const { data, error } = await supabaseAdmin
+    .from('waitlist')
+    .select(`
+      *,
+      event:events(id, title, slug, start_date, end_date, venue),
+      ticket_type:ticket_types(id, name, price)
+    `)
+    .eq('id', waitlistId)
+    .single();
+
+  if (error) {
+    if (error.code === 'PGRST116') return null;
+    throw error;
+  }
+  return data;
+}
+
+/**
+ * Update waitlist entry status
+ */
+export async function updateWaitlistStatus(
+  waitlistId: string,
+  status: 'waiting' | 'notified' | 'converted' | 'expired' | 'cancelled',
+  expiresAt?: string
+) {
+  const updateData: any = {
+    status,
+    ...(status === 'notified' && { notified_at: new Date().toISOString() }),
+    ...(expiresAt && { expires_at: expiresAt }),
+  };
+
+  const { error } = await supabaseAdmin
+    .from('waitlist')
+    .update(updateData)
+    .eq('id', waitlistId);
+
+  if (error) throw error;
+}
+
+/**
  * Get admin stats for dashboard
  */
 export async function getAdminDashboardStats() {
@@ -1934,4 +2020,646 @@ export async function reorderSiteFeatures(section: string, orderedIds: string[])
   );
 
   await Promise.all(updates);
+}
+
+// ============================================================
+// SEMINAR REGISTRATIONS - WRITE OPERATIONS
+// ============================================================
+
+export interface InsertSeminarRegistration {
+  user_id: string;
+  seminar_id: string;
+  order_id?: string;
+  start_session_date?: string;
+  qr_code?: string;
+  qr_code_url?: string;
+}
+
+/**
+ * Create a new seminar registration
+ * - Sets sessions_completed=0, sessions_remaining=10
+ * - Status = 'active'
+ * - makeup_used = false
+ */
+export async function createSeminarRegistration(data: InsertSeminarRegistration) {
+  const { data: registration, error } = await supabaseAdmin
+    .from('seminar_registrations')
+    .insert({
+      user_id: data.user_id,
+      seminar_id: data.seminar_id,
+      order_id: data.order_id || null,
+      registration_date: new Date().toISOString(),
+      start_session_date: data.start_session_date || null,
+      sessions_completed: 0,
+      sessions_remaining: 10,
+      makeup_used: false,
+      status: 'active',
+      qr_code: data.qr_code || null,
+      qr_code_url: data.qr_code_url || null,
+    })
+    .select(`
+      *,
+      seminar:seminars (*)
+    `)
+    .single();
+
+  if (error) throw error;
+  return registration as SeminarRegistration & { seminar: Seminar };
+}
+
+/**
+ * Update seminar registration
+ */
+export async function updateSeminarRegistration(
+  registrationId: string,
+  data: Partial<{
+    sessions_completed: number;
+    sessions_remaining: number;
+    makeup_used: boolean;
+    status: 'active' | 'completed' | 'cancelled' | 'on_hold';
+    qr_code: string;
+    qr_code_url: string;
+    notes: string;
+  }>
+) {
+  const { data: registration, error } = await supabaseAdmin
+    .from('seminar_registrations')
+    .update(data)
+    .eq('id', registrationId)
+    .select(`
+      *,
+      seminar:seminars (*)
+    `)
+    .single();
+
+  if (error) throw error;
+  return registration as SeminarRegistration & { seminar: Seminar };
+}
+
+/**
+ * Get registration by QR code
+ */
+export async function getSeminarRegistrationByQRCode(qrCode: string) {
+  const { data, error } = await supabaseAdmin
+    .from('seminar_registrations')
+    .select(`
+      *,
+      seminar:seminars (*),
+      user:users (id, email, first_name, last_name)
+    `)
+    .eq('qr_code', qrCode)
+    .single();
+
+  if (error) {
+    if (error.code === 'PGRST116') return null;
+    throw error;
+  }
+  return data;
+}
+
+/**
+ * Get registration by ID
+ */
+export async function getSeminarRegistrationById(registrationId: string) {
+  const { data, error } = await supabaseAdmin
+    .from('seminar_registrations')
+    .select(`
+      *,
+      seminar:seminars (*),
+      user:users (id, email, first_name, last_name),
+      attendance:seminar_attendance (
+        *,
+        session:seminar_sessions (*)
+      )
+    `)
+    .eq('id', registrationId)
+    .single();
+
+  if (error) {
+    if (error.code === 'PGRST116') return null;
+    throw error;
+  }
+  return data;
+}
+
+/**
+ * Cancel a seminar registration
+ */
+export async function cancelSeminarRegistration(registrationId: string) {
+  const { error } = await supabaseAdmin
+    .from('seminar_registrations')
+    .update({ status: 'cancelled' })
+    .eq('id', registrationId);
+
+  if (error) throw error;
+}
+
+/**
+ * Mark makeup as used for a registration
+ */
+export async function useSeminarMakeup(registrationId: string) {
+  const { data, error } = await supabaseAdmin
+    .from('seminar_registrations')
+    .update({ makeup_used: true })
+    .eq('id', registrationId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data as SeminarRegistration;
+}
+
+// ============================================================
+// SEMINAR ATTENDANCE - CHECK-IN OPERATIONS
+// ============================================================
+
+export interface InsertSeminarAttendance {
+  registration_id: string;
+  session_id: string;
+  user_id: string;
+  seminar_id: string;
+  is_makeup?: boolean;
+  credits_awarded?: number;
+  checked_in_by?: string;
+  notes?: string;
+}
+
+/**
+ * Record seminar session attendance (check-in)
+ * - Awards 2 CE credits by default
+ * - Updates registration's sessions_completed/remaining
+ */
+export async function recordSeminarAttendance(data: InsertSeminarAttendance) {
+  // First, check if already checked in for this session
+  const { data: existing } = await supabaseAdmin
+    .from('seminar_attendance')
+    .select('id')
+    .eq('registration_id', data.registration_id)
+    .eq('session_id', data.session_id)
+    .maybeSingle();
+
+  if (existing) {
+    throw new Error('Already checked in for this session');
+  }
+
+  // Get registration to validate
+  const { data: registration, error: regError } = await supabaseAdmin
+    .from('seminar_registrations')
+    .select('*, seminar:seminars(*)')
+    .eq('id', data.registration_id)
+    .single();
+
+  if (regError) throw regError;
+  if (!registration) throw new Error('Registration not found');
+  if (registration.status !== 'active') throw new Error('Registration is not active');
+  if (registration.sessions_remaining <= 0) throw new Error('No sessions remaining');
+
+  // If it's a makeup session, validate makeup_used is false
+  if (data.is_makeup && registration.makeup_used) {
+    throw new Error('Makeup session already used for this year');
+  }
+
+  // Create attendance record
+  const creditsToAward = data.credits_awarded ?? 2;
+  const { data: attendance, error: attendanceError } = await supabaseAdmin
+    .from('seminar_attendance')
+    .insert({
+      registration_id: data.registration_id,
+      session_id: data.session_id,
+      user_id: data.user_id,
+      seminar_id: data.seminar_id,
+      attended: true,
+      checked_in_at: new Date().toISOString(),
+      checked_in_by: data.checked_in_by || null,
+      is_makeup: data.is_makeup || false,
+      credits_awarded: creditsToAward,
+      notes: data.notes || null,
+    })
+    .select(`
+      *,
+      session:seminar_sessions (*)
+    `)
+    .single();
+
+  if (attendanceError) throw attendanceError;
+
+  // Update registration counters
+  const newSessionsCompleted = registration.sessions_completed + 1;
+  const newSessionsRemaining = registration.sessions_remaining - 1;
+  const newStatus = newSessionsRemaining === 0 ? 'completed' : 'active';
+
+  const updateData: any = {
+    sessions_completed: newSessionsCompleted,
+    sessions_remaining: newSessionsRemaining,
+    status: newStatus,
+  };
+
+  // Mark makeup as used if this was a makeup session
+  if (data.is_makeup) {
+    updateData.makeup_used = true;
+  }
+
+  await supabaseAdmin
+    .from('seminar_registrations')
+    .update(updateData)
+    .eq('id', data.registration_id);
+
+  // Award CE credits
+  await supabaseAdmin
+    .from('ce_ledger')
+    .insert({
+      user_id: data.user_id,
+      event_id: null, // Seminars use seminar_id, not event_id
+      credits: creditsToAward,
+      source: 'seminar_session',
+      transaction_type: 'earned',
+      notes: `Earned for attending ${registration.seminar?.title || 'Monthly Seminar'} session${data.is_makeup ? ' (Makeup)' : ''}`,
+    });
+
+  return {
+    attendance,
+    registration: {
+      ...registration,
+      sessions_completed: newSessionsCompleted,
+      sessions_remaining: newSessionsRemaining,
+      status: newStatus,
+    },
+    creditsAwarded: creditsToAward,
+  };
+}
+
+/**
+ * Get session by ID
+ */
+export async function getSeminarSessionById(sessionId: string) {
+  const { data, error } = await supabaseAdmin
+    .from('seminar_sessions')
+    .select(`
+      *,
+      seminar:seminars (*)
+    `)
+    .eq('id', sessionId)
+    .single();
+
+  if (error) {
+    if (error.code === 'PGRST116') return null;
+    throw error;
+  }
+  return data as SeminarSession & { seminar: Seminar };
+}
+
+/**
+ * Check if user is checked in for a specific session
+ */
+export async function isSeminarSessionCheckedIn(registrationId: string, sessionId: string): Promise<boolean> {
+  const { data, error } = await supabaseAdmin
+    .from('seminar_attendance')
+    .select('id')
+    .eq('registration_id', registrationId)
+    .eq('session_id', sessionId)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data !== null;
+}
+
+/**
+ * Get all attendance records for a registration
+ */
+export async function getSeminarAttendanceByRegistration(registrationId: string) {
+  const { data, error } = await supabaseAdmin
+    .from('seminar_attendance')
+    .select(`
+      *,
+      session:seminar_sessions (*)
+    `)
+    .eq('registration_id', registrationId)
+    .order('checked_in_at', { ascending: true });
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Get all attendance for a session (admin)
+ */
+export async function getSeminarSessionAttendance(sessionId: string) {
+  const { data, error } = await supabaseAdmin
+    .from('seminar_attendance')
+    .select(`
+      *,
+      registration:seminar_registrations (*),
+      user:users (id, email, first_name, last_name)
+    `)
+    .eq('session_id', sessionId)
+    .order('checked_in_at', { ascending: true });
+
+  if (error) throw error;
+  return data;
+}
+
+// ============================================================
+// SEMINAR SESSIONS - ADMIN OPERATIONS
+// ============================================================
+
+/**
+ * Get upcoming sessions for a seminar
+ */
+export async function getUpcomingSeminarSessions(seminarId: string, limit = 5) {
+  const { data, error } = await supabaseAdmin
+    .from('seminar_sessions')
+    .select('*')
+    .eq('seminar_id', seminarId)
+    .gte('session_date', new Date().toISOString().split('T')[0])
+    .order('session_date', { ascending: true })
+    .limit(limit);
+
+  if (error) throw error;
+  return data as SeminarSession[];
+}
+
+/**
+ * Get all sessions for a seminar with attendance count
+ */
+export async function getSeminarSessionsWithAttendance(seminarId: string) {
+  const { data: sessions, error: sessionsError } = await supabaseAdmin
+    .from('seminar_sessions')
+    .select('*')
+    .eq('seminar_id', seminarId)
+    .order('session_number', { ascending: true });
+
+  if (sessionsError) throw sessionsError;
+
+  // Get attendance counts for each session
+  const sessionsWithAttendance = await Promise.all(
+    (sessions || []).map(async (session) => {
+      const { count, error } = await supabaseAdmin
+        .from('seminar_attendance')
+        .select('*', { count: 'exact', head: true })
+        .eq('session_id', session.id);
+
+      if (error) throw error;
+      return {
+        ...session,
+        attendance_count: count || 0,
+      };
+    })
+  );
+
+  return sessionsWithAttendance;
+}
+
+// ============================================================
+// SEMINAR CERTIFICATES - BI-ANNUAL GENERATION
+// ============================================================
+
+export interface SeminarCertificateData {
+  registration_id: string;
+  user_id: string;
+  seminar_id: string;
+  attendee_name: string;
+  period: 'first_half' | 'second_half';
+  credits_earned: number;
+  pdf_url?: string;
+}
+
+/**
+ * Get registrations eligible for bi-annual certificates
+ * @param seminarId The seminar ID
+ * @param period 'first_half' (Jan-Jun) or 'second_half' (Jul-Dec)
+ * @param year The year to check
+ */
+export async function getEligibleForSeminarCertificates(
+  seminarId: string,
+  period: 'first_half' | 'second_half',
+  year: number
+) {
+  // Determine date range
+  const startDate = period === 'first_half'
+    ? `${year}-01-01`
+    : `${year}-07-01`;
+  const endDate = period === 'first_half'
+    ? `${year}-06-30`
+    : `${year}-12-31`;
+
+  // Get all active/completed registrations for this seminar
+  const { data: registrations, error: regError } = await supabaseAdmin
+    .from('seminar_registrations')
+    .select(`
+      *,
+      user:users (id, email, first_name, last_name),
+      seminar:seminars (*)
+    `)
+    .eq('seminar_id', seminarId)
+    .in('status', ['active', 'completed']);
+
+  if (regError) throw regError;
+
+  // For each registration, get attendance in the period and check if they qualify
+  const eligibleRegistrations = [];
+
+  for (const reg of registrations || []) {
+    // Get attendance in the period
+    const { data: attendance, error: attError } = await supabaseAdmin
+      .from('seminar_attendance')
+      .select('*, session:seminar_sessions(*)')
+      .eq('registration_id', reg.id)
+      .gte('checked_in_at', startDate)
+      .lte('checked_in_at', `${endDate}T23:59:59`);
+
+    if (attError) throw attError;
+
+    // Check if they already have a certificate for this period
+    const { data: existingCert } = await supabaseAdmin
+      .from('certificates')
+      .select('id')
+      .eq('user_id', reg.user_id)
+      .eq('event_id', seminarId)
+      .like('notes', `%${period}%${year}%`)
+      .maybeSingle();
+
+    if (existingCert) continue; // Already has certificate
+
+    // Calculate credits earned in period
+    const creditsEarned = (attendance || []).reduce(
+      (sum, att) => sum + (att.credits_awarded || 0),
+      0
+    );
+
+    if (creditsEarned > 0) {
+      eligibleRegistrations.push({
+        registration: reg,
+        user: reg.user,
+        seminar: reg.seminar,
+        attendance: attendance || [],
+        credits_earned: creditsEarned,
+        sessions_in_period: (attendance || []).length,
+      });
+    }
+  }
+
+  return eligibleRegistrations;
+}
+
+/**
+ * Create a seminar certificate
+ */
+export async function createSeminarCertificate(data: {
+  user_id: string;
+  seminar_id: string;
+  attendee_name: string;
+  credits: number;
+  period: string;
+  year: number;
+  pdf_url?: string;
+}) {
+  // Generate unique certificate code
+  const year = data.year.toString().slice(-2);
+  const periodCode = data.period === 'first_half' ? 'H1' : 'H2';
+  const randomPart = Math.random().toString(36).substring(2, 8).toUpperCase();
+  const certificateCode = `GPS-SEM-${year}${periodCode}-${randomPart}`;
+
+  const { data: certificate, error } = await supabaseAdmin
+    .from('certificates')
+    .insert({
+      certificate_code: certificateCode,
+      ticket_id: null,
+      user_id: data.user_id,
+      event_id: data.seminar_id, // Using event_id to store seminar_id
+      attendee_name: data.attendee_name,
+      pdf_url: data.pdf_url || null,
+      notes: `Seminar Certificate - ${data.period} ${data.year} - ${data.credits} CE Credits`,
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return certificate as Certificate;
+}
+
+/**
+ * Get user's seminar certificates
+ */
+export async function getUserSeminarCertificates(userId: string) {
+  const { data, error } = await supabaseAdmin
+    .from('certificates')
+    .select(`
+      *,
+      seminar:seminars (*)
+    `)
+    .eq('user_id', userId)
+    .like('certificate_code', 'GPS-SEM-%')
+    .order('generated_at', { ascending: false });
+
+  if (error) throw error;
+  return data;
+}
+
+// ============================================================
+// SEMINAR ADMIN QUERIES
+// ============================================================
+
+/**
+ * Get all seminar registrations for admin
+ */
+export async function getAllSeminarRegistrationsAdmin(seminarId?: string) {
+  let query = supabaseAdmin
+    .from('seminar_registrations')
+    .select(`
+      *,
+      user:users (id, email, first_name, last_name),
+      seminar:seminars (*),
+      attendance:seminar_attendance (count)
+    `)
+    .order('created_at', { ascending: false });
+
+  if (seminarId) {
+    query = query.eq('seminar_id', seminarId);
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Get seminar with all its data (admin)
+ */
+export async function getSeminarWithFullData(seminarId: string) {
+  const { data: seminar, error: seminarError } = await supabaseAdmin
+    .from('seminars')
+    .select(`
+      *,
+      sessions:seminar_sessions (*),
+      moderators:seminar_moderators (
+        *,
+        speaker:speakers (*)
+      )
+    `)
+    .eq('id', seminarId)
+    .single();
+
+  if (seminarError) throw seminarError;
+
+  // Get registration count
+  const { count: registrationCount } = await supabaseAdmin
+    .from('seminar_registrations')
+    .select('*', { count: 'exact', head: true })
+    .eq('seminar_id', seminarId)
+    .in('status', ['active', 'completed']);
+
+  return {
+    ...seminar,
+    registration_count: registrationCount || 0,
+  };
+}
+
+/**
+ * Get seminar stats for admin dashboard
+ */
+export async function getSeminarStats(seminarId: string) {
+  // Total registrations
+  const { count: totalRegistrations } = await supabaseAdmin
+    .from('seminar_registrations')
+    .select('*', { count: 'exact', head: true })
+    .eq('seminar_id', seminarId);
+
+  // Active registrations
+  const { count: activeRegistrations } = await supabaseAdmin
+    .from('seminar_registrations')
+    .select('*', { count: 'exact', head: true })
+    .eq('seminar_id', seminarId)
+    .eq('status', 'active');
+
+  // Completed registrations
+  const { count: completedRegistrations } = await supabaseAdmin
+    .from('seminar_registrations')
+    .select('*', { count: 'exact', head: true })
+    .eq('seminar_id', seminarId)
+    .eq('status', 'completed');
+
+  // Total attendance records
+  const { count: totalAttendance } = await supabaseAdmin
+    .from('seminar_attendance')
+    .select('*', { count: 'exact', head: true })
+    .eq('seminar_id', seminarId);
+
+  // Total credits awarded
+  const { data: creditsData } = await supabaseAdmin
+    .from('seminar_attendance')
+    .select('credits_awarded')
+    .eq('seminar_id', seminarId);
+
+  const totalCreditsAwarded = (creditsData || []).reduce(
+    (sum, row) => sum + (row.credits_awarded || 0),
+    0
+  );
+
+  return {
+    total_registrations: totalRegistrations || 0,
+    active_registrations: activeRegistrations || 0,
+    completed_registrations: completedRegistrations || 0,
+    total_attendance: totalAttendance || 0,
+    total_credits_awarded: totalCreditsAwarded,
+  };
 }

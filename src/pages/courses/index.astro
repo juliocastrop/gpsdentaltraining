@@ -3,21 +3,66 @@
  * Courses Listing Page - GPS Dental Training
  * Premium design with filtering, featured course, and dynamic grid
  *
- * All content is 100% backend-controlled:
- * - Courses come from Supabase events table
- * - Speakers come from speakers table via event_speakers junction
- * - Hero content can be managed via site_settings table (future enhancement)
+ * Content Priority:
+ * 1. Try Strapi for course content (CMS-managed)
+ * 2. Fall back to Supabase if Strapi unavailable
+ * - Transactional data (tickets, availability) always from Supabase
  */
 import '../../styles/global.css';
 import Navbar from '../../components/layout/Navbar';
 import Footer from '../../components/layout/Footer';
 import CourseCard from '../../components/events/CourseCard.astro';
+import { getEvents, getMediaUrl } from '../../lib/strapi/client';
 import { getPublishedEventsWithSpeakers, getFeaturedEvent } from '../../lib/supabase/queries';
 import type { EventWithSpeakers } from '../../types/database';
 
-// Fetch data from backend
-const allEvents = await getPublishedEventsWithSpeakers();
-const featuredEvent = await getFeaturedEvent();
+// Try Strapi first, fall back to Supabase
+let allEvents: any[] = [];
+let featuredEvent: any = null;
+
+try {
+  const { events: strapiEvents } = await getEvents({ upcoming: true, limit: 50 });
+
+  if (strapiEvents && strapiEvents.length > 0) {
+    // Transform Strapi events to match expected format
+    allEvents = strapiEvents.map((e: any) => ({
+      id: String(e.id),
+      title: e.title,
+      slug: e.slug,
+      description: e.description,
+      short_description: e.shortDescription,
+      start_date: e.startDate,
+      end_date: e.endDate,
+      venue: e.venue,
+      address: e.address,
+      ce_credits: e.ceCredits || 0,
+      capacity: e.capacity,
+      featured_image_url: getMediaUrl(e.featuredImage),
+      is_featured: e.isFeatured,
+      event_type: e.eventType,
+      speakers: e.speakers?.data?.map((s: any) => ({
+        id: String(s.id),
+        name: s.attributes.name,
+        title: s.attributes.title,
+        photo_url: getMediaUrl(s.attributes.photo),
+      })) || [],
+    }));
+
+    // Get featured event
+    featuredEvent = allEvents.find(e => e.is_featured) || allEvents[0];
+  } else {
+    // Fall back to Supabase
+    const supabaseEvents = await getPublishedEventsWithSpeakers();
+    allEvents = supabaseEvents;
+    featuredEvent = await getFeaturedEvent();
+  }
+} catch (error) {
+  console.error('Error fetching events from Strapi:', error);
+  // Fall back to Supabase
+  const supabaseEvents = await getPublishedEventsWithSpeakers();
+  allEvents = supabaseEvents;
+  featuredEvent = await getFeaturedEvent();
+}
 
 // Separate featured from other events (don't duplicate)
 const otherEvents = featuredEvent

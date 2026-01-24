@@ -1,0 +1,25 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    {
+      "path": "/api/cron/session-reminders",
+      "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/waitlist-expiration",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/ticket-expiration",
+      "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/seminar-certificates",
+      "schedule": "0 9 30 6 *"
+    },
+    {
+      "path": "/api/cron/seminar-certificates",
+      "schedule": "0 9 31 12 *"
+    }
+  ]
+}

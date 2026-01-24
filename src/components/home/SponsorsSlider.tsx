@@ -22,7 +22,7 @@ export default function SponsorsSlider({
 }: SponsorsSliderProps) {
   const [isPaused, setIsPaused] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const animationRef = useRef<number>();
+  const animationRef = useRef<number | undefined>(undefined);
   const lastTimeRef = useRef<number>(0);
   const positionRef = useRef<number>(0);
 
