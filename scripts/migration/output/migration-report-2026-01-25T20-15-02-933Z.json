@@ -1,0 +1,41 @@
+{
+  "timestamp": "2026-01-25T20:15:02.933Z",
+  "dryRun": false,
+  "results": [
+    {
+      "entity": "ce_ledger",
+      "total": 1,
+      "migrated": 1,
+      "skipped": 0,
+      "failed": 0,
+      "errors": [],
+      "startTime": "2026-01-25T20:15:01.428Z",
+      "endTime": "2026-01-25T20:15:02.932Z"
+    },
+    {
+      "entity": "certificates",
+      "total": 1,
+      "migrated": 1,
+      "skipped": 0,
+      "failed": 0,
+      "errors": [],
+      "startTime": "2026-01-25T20:15:01.428Z",
+      "endTime": "2026-01-25T20:15:02.932Z"
+    },
+    {
+      "entity": "waitlist",
+      "total": 5,
+      "migrated": 5,
+      "skipped": 0,
+      "failed": 0,
+      "errors": [],
+      "startTime": "2026-01-25T20:15:01.428Z",
+      "endTime": "2026-01-25T20:15:02.932Z"
+    }
+  ],
+  "summary": {
+    "totalMigrated": 7,
+    "totalSkipped": 0,
+    "totalFailed": 0
+  }
+}

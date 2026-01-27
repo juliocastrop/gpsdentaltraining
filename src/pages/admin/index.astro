@@ -1,0 +1,245 @@
+---
+/**
+ * Admin Dashboard - GPS Dental Training
+ * Main admin panel with statistics, quick actions, and recent activity
+ */
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import Dashboard from '../../components/admin/Dashboard';
+import { supabaseAdmin } from '../../lib/supabase/client';
+
+// Check if Clerk is configured
+const clerkConfigured = !!import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY;
+
+// Get user from Clerk if available
+let userId: string | null = null;
+let isAdmin = false;
+let userName = 'Admin';
+let userEmail = 'admin@gpsdentaltraining.com';
+
+try {
+  if (clerkConfigured && Astro.locals.auth) {
+    const auth = Astro.locals.auth();
+    userId = auth?.userId || null;
+
+    if (userId) {
+      const { data: userData } = await supabaseAdmin
+        .from('users')
+        .select('role, first_name, last_name, email')
+        .eq('clerk_id', userId)
+        .single();
+
+      isAdmin = userData?.role === 'admin';
+      if (userData?.first_name) {
+        userName = `${userData.first_name} ${userData.last_name || ''}`.trim();
+      }
+      if (userData?.email) {
+        userEmail = userData.email;
+      }
+    }
+  }
+} catch {
+  // Clerk not available - allow access for development
+  isAdmin = true;
+}
+
+// Redirect if not logged in or not admin (only in production with Clerk)
+if (clerkConfigured && (!userId || !isAdmin)) {
+  return Astro.redirect('/sign-in?redirect_url=/admin');
+}
+
+// Fetch dashboard stats
+let stats = {
+  totalUsers: 0,
+  totalEvents: 0,
+  ticketsSold: 0,
+  totalRevenue: 0,
+  ceCreditsAwarded: 0,
+  waitlistCount: 0,
+  abandonedCarts: 0,
+  recoveredCarts: 0,
+};
+
+let recentActivity: any[] = [];
+let upcomingEvents: any[] = [];
+
+try {
+  // Get user count
+  const { count: userCount } = await supabaseAdmin
+    .from('users')
+    .select('*', { count: 'exact', head: true });
+  stats.totalUsers = userCount || 0;
+
+  // Get event count
+  const { count: eventCount } = await supabaseAdmin
+    .from('events')
+    .select('*', { count: 'exact', head: true });
+  stats.totalEvents = eventCount || 0;
+
+  // Get tickets sold count
+  const { count: ticketCount } = await supabaseAdmin
+    .from('tickets')
+    .select('*', { count: 'exact', head: true })
+    .eq('status', 'valid');
+  stats.ticketsSold = ticketCount || 0;
+
+  // Get total revenue from orders
+  const { data: revenueData } = await supabaseAdmin
+    .from('orders')
+    .select('total_amount')
+    .eq('status', 'completed');
+  stats.totalRevenue = revenueData?.reduce((sum, o) => sum + (o.total_amount || 0), 0) || 0;
+
+  // Get CE credits awarded
+  const { data: creditsData } = await supabaseAdmin
+    .from('ce_ledger')
+    .select('credits')
+    .eq('transaction_type', 'earned');
+  stats.ceCreditsAwarded = creditsData?.reduce((sum, c) => sum + (c.credits || 0), 0) || 0;
+
+  // Get waitlist count
+  const { count: waitlistCount } = await supabaseAdmin
+    .from('waitlist')
+    .select('*', { count: 'exact', head: true })
+    .eq('status', 'waiting');
+  stats.waitlistCount = waitlistCount || 0;
+
+  // Get abandoned carts (placeholder - will be added in Phase 10)
+  // stats.abandonedCarts = 0;
+  // stats.recoveredCarts = 0;
+
+  // Get recent activity (combine from different sources)
+  const activities: any[] = [];
+
+  // Recent check-ins
+  const { data: checkIns } = await supabaseAdmin
+    .from('attendance')
+    .select(`
+      id,
+      checked_in_at,
+      tickets:ticket_id (
+        attendee_name,
+        attendee_email
+      ),
+      events:event_id (
+        title
+      )
+    `)
+    .order('checked_in_at', { ascending: false })
+    .limit(5);
+
+  checkIns?.forEach((ci) => {
+    activities.push({
+      id: `checkin-${ci.id}`,
+      type: 'check_in',
+      title: 'Attendee checked in',
+      description: `${ci.tickets?.attendee_name} - ${ci.events?.title}`,
+      timestamp: ci.checked_in_at,
+    });
+  });
+
+  // Recent certificates
+  const { data: certs } = await supabaseAdmin
+    .from('certificates')
+    .select(`
+      id,
+      generated_at,
+      attendee_name,
+      events:event_id (
+        title
+      )
+    `)
+    .order('generated_at', { ascending: false })
+    .limit(5);
+
+  certs?.forEach((cert) => {
+    activities.push({
+      id: `cert-${cert.id}`,
+      type: 'certificate',
+      title: 'Certificate generated',
+      description: `${cert.attendee_name} - ${cert.events?.title}`,
+      timestamp: cert.generated_at,
+    });
+  });
+
+  // Recent orders
+  const { data: orders } = await supabaseAdmin
+    .from('orders')
+    .select(`
+      id,
+      created_at,
+      total_amount,
+      users:user_id (
+        first_name,
+        last_name,
+        email
+      )
+    `)
+    .eq('status', 'completed')
+    .order('created_at', { ascending: false })
+    .limit(5);
+
+  orders?.forEach((order) => {
+    const name = order.users?.first_name
+      ? `${order.users.first_name} ${order.users.last_name || ''}`
+      : order.users?.email || 'Guest';
+    activities.push({
+      id: `order-${order.id}`,
+      type: 'order',
+      title: 'New order completed',
+      description: `${name} - $${order.total_amount}`,
+      timestamp: order.created_at,
+    });
+  });
+
+  // Sort by timestamp and take top 10
+  recentActivity = activities
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    .slice(0, 10);
+
+  // Get upcoming events
+  const { data: events } = await supabaseAdmin
+    .from('events')
+    .select(`
+      id,
+      title,
+      start_date,
+      capacity
+    `)
+    .gte('start_date', new Date().toISOString().split('T')[0])
+    .order('start_date', { ascending: true })
+    .limit(5);
+
+  // Get ticket counts for each event
+  for (const event of events || []) {
+    const { count: ticketsSold } = await supabaseAdmin
+      .from('tickets')
+      .select('*', { count: 'exact', head: true })
+      .eq('event_id', event.id)
+      .eq('status', 'valid');
+
+    upcomingEvents.push({
+      id: event.id,
+      title: event.title,
+      date: event.start_date,
+      ticketsSold: ticketsSold || 0,
+      capacity: event.capacity || 0,
+      type: 'course', // Default to course, seminars would have different logic
+    });
+  }
+} catch (error) {
+  console.error('Error fetching dashboard data:', error);
+}
+
+const currentPath = Astro.url.pathname;
+---
+
+<AdminLayout title="Dashboard">
+  <Dashboard
+    client:load
+    currentPath={currentPath}
+    user={{ name: userName, email: userEmail }}
+    stats={stats}
+    recentActivity={recentActivity}
+    upcomingEvents={upcomingEvents}
+  />
+</AdminLayout>

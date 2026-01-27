@@ -27,19 +27,26 @@ export const onRequest = clerkMiddleware((auth, context) => {
 
   // Protect admin routes - check for admin role in public metadata
   if (isAdminRoute(context.request)) {
+    // In development mode, allow access if user is authenticated
+    const isDev = import.meta.env.DEV;
+
     if (!userId) {
       return auth().redirectToSignIn();
     }
 
-    // Check if user has admin role in their metadata
-    const publicMetadata = sessionClaims?.public_metadata as { role?: string } | undefined;
-    const userRole = publicMetadata?.role;
-    if (userRole !== 'admin' && userRole !== 'staff') {
-      // Redirect to home if not an admin
-      return new Response(null, {
-        status: 302,
-        headers: { Location: '/' },
-      });
+    // In production, verify admin role
+    if (!isDev) {
+      // Check if user has admin role in their metadata
+      const metadata = (sessionClaims?.publicMetadata || sessionClaims?.public_metadata || {}) as { role?: string };
+      const userRole = metadata?.role;
+
+      if (userRole !== 'admin' && userRole !== 'staff') {
+        // Redirect to home if not an admin
+        return new Response(null, {
+          status: 302,
+          headers: { Location: '/' },
+        });
+      }
     }
   }
 });

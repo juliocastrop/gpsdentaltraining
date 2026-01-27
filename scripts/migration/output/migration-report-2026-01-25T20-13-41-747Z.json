@@ -1,0 +1,51 @@
+{
+  "timestamp": "2026-01-25T20:13:41.747Z",
+  "dryRun": false,
+  "results": [
+    {
+      "entity": "seminars",
+      "total": 1,
+      "migrated": 1,
+      "skipped": 0,
+      "failed": 0,
+      "errors": [],
+      "startTime": "2026-01-25T20:13:39.735Z",
+      "endTime": "2026-01-25T20:13:41.746Z"
+    },
+    {
+      "entity": "seminar_sessions",
+      "total": 10,
+      "migrated": 10,
+      "skipped": 0,
+      "failed": 0,
+      "errors": [],
+      "startTime": "2026-01-25T20:13:39.735Z",
+      "endTime": "2026-01-25T20:13:41.746Z"
+    },
+    {
+      "entity": "seminar_registrations",
+      "total": 0,
+      "migrated": 0,
+      "skipped": 0,
+      "failed": 0,
+      "errors": [],
+      "startTime": "2026-01-25T20:13:39.735Z",
+      "endTime": "2026-01-25T20:13:41.746Z"
+    },
+    {
+      "entity": "seminar_attendance",
+      "total": 0,
+      "migrated": 0,
+      "skipped": 0,
+      "failed": 0,
+      "errors": [],
+      "startTime": "2026-01-25T20:13:39.735Z",
+      "endTime": "2026-01-25T20:13:41.746Z"
+    }
+  ],
+  "summary": {
+    "totalMigrated": 11,
+    "totalSkipped": 0,
+    "totalFailed": 0
+  }
+}

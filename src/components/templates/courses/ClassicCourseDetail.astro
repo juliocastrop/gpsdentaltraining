@@ -1,0 +1,535 @@
+---
+/**
+ * Classic Course Detail Template
+ * A "modernized classic" layout inspired by the production WordPress site.
+ * Uses the same design system (colors, fonts, Tailwind) but with a different structure:
+ * - Sponsors bar at top (below navbar)
+ * - Shorter/simpler hero with gradient background
+ * - Numbered session listings instead of tabbed schedule
+ * - Single flow layout with clean borders
+ * - Simpler sticky sidebar styling
+ */
+import Navbar from '../../layout/Navbar';
+import Footer from '../../layout/Footer';
+import CountdownTimer from '../../events/CountdownTimer';
+import TicketSelector from '../../tickets/TicketSelector';
+import WaitlistForm from '../../tickets/WaitlistForm';
+import type { Speaker } from '../../../types/database';
+
+interface MigratedScheduleTopic {
+  name: string;
+  start_time: string;
+  end_time: string;
+  speakers: number[];
+  location: string;
+  description: string;
+}
+
+interface MigratedSchedule {
+  date: string;
+  tab_label: string;
+  topics: MigratedScheduleTopic[];
+}
+
+interface Props {
+  event: any;
+  availability: any;
+  siteSettings: {
+    logo_url: string;
+    logo_white_url: string;
+    favicon_url: string;
+    company_name: string;
+  };
+  cleanTitle: string;
+  cleanDescription: string | null;
+  dateDisplay: string;
+  learningObjectives: string[];
+  migratedSchedules: MigratedSchedule[];
+  isUpcoming: boolean;
+  isSoldOut: boolean;
+  dayCount: number;
+  url: URL;
+}
+
+const {
+  event,
+  availability,
+  siteSettings,
+  cleanTitle,
+  cleanDescription,
+  dateDisplay,
+  learningObjectives,
+  migratedSchedules,
+  isUpcoming,
+  isSoldOut,
+  dayCount,
+  url,
+} = Astro.props;
+
+// Helper functions
+function formatDateShort(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+function getDayName(dayNum: number, startDate: string): string {
+  const date = new Date(startDate);
+  date.setDate(date.getDate() + dayNum - 1);
+  return date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+}
+
+function formatScheduleDate(dateStr: string): string {
+  if (!dateStr) return '';
+  const date = new Date(dateStr);
+  return date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+}
+
+function formatTimeRange(startTime: string, endTime: string): string {
+  if (!startTime) return '';
+  const formatTime = (time: string) => {
+    const [hours, minutes] = time.split(':');
+    const h = parseInt(hours);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 || 12;
+    return `${h12}:${minutes} ${ampm}`;
+  };
+  if (endTime) {
+    return `${formatTime(startTime)} - ${formatTime(endTime)}`;
+  }
+  return formatTime(startTime);
+}
+
+function cleanHtmlDescription(html: string | null | undefined): string {
+  if (!html) return '';
+  let text = html.replace(/<[^>]*>/g, '');
+  text = text
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ');
+  return text.trim();
+}
+
+// Flatten all schedule topics into a numbered list across all days
+let globalTopicIndex = 0;
+---
+
+<!-- Navigation - Solid background (NOT transparent) -->
+<Navbar
+  logo={siteSettings.logo_url}
+  logoWhite={siteSettings.logo_white_url}
+  transparent={false}
+  client:load
+/>
+
+<!-- Sponsors / Accreditation Bar -->
+<section class="bg-[#F0F0F0] border-b border-gray-200">
+  <div class="container mx-auto px-4 lg:px-8 max-w-7xl">
+    <div class="flex items-center justify-center gap-8 md:gap-12 py-4">
+      <div class="flex items-center gap-2 opacity-70 hover:opacity-100 transition-opacity">
+        <img src="/pace-logo.png" alt="PACE - Program Approval for Continuing Education" class="h-10 md:h-12 object-contain" />
+      </div>
+      <div class="hidden sm:block w-px h-8 bg-gray-300"></div>
+      <div class="flex items-center gap-2 opacity-70 hover:opacity-100 transition-opacity">
+        <img src="/logo.svg" alt="GPS Dental Training" class="h-10 md:h-12 object-contain" />
+      </div>
+      <div class="hidden sm:block w-px h-8 bg-gray-300"></div>
+      <div class="flex items-center gap-2 opacity-70 hover:opacity-100 transition-opacity">
+        <div class="text-center">
+          <span class="text-base font-bold text-[#0C2044] block leading-tight">AGD</span>
+          <span class="text-[9px] text-gray-500 leading-tight block">Academy of General Dentistry</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Compact Hero Section -->
+<section class="relative bg-gradient-to-br from-[#0C2044] to-[#173D84] py-16 md:py-20 lg:py-24 overflow-hidden">
+  <!-- Decorative elements -->
+  <div class="absolute inset-0 pointer-events-none">
+    <div class="absolute top-0 right-0 w-96 h-96 bg-[#DDC89D] rounded-full opacity-[0.04] -translate-y-1/2 translate-x-1/3"></div>
+    <div class="absolute bottom-0 left-0 w-72 h-72 bg-[#26ACF5] rounded-full opacity-[0.04] translate-y-1/2 -translate-x-1/3"></div>
+  </div>
+
+  <div class="container mx-auto px-4 lg:px-8 max-w-7xl relative z-10">
+    <div class="max-w-4xl">
+      <!-- Title -->
+      <h1 class="text-3xl md:text-4xl lg:text-5xl font-extrabold text-white mb-6 leading-tight font-heading">
+        {cleanTitle}
+      </h1>
+
+      <!-- Meta Row -->
+      <div class="flex flex-wrap items-center gap-4 md:gap-6 text-white/90 text-base md:text-lg mb-6">
+        <div class="flex items-center gap-2">
+          <svg class="w-5 h-5 text-[#DDC89D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+          <span class="font-medium">{dateDisplay}</span>
+        </div>
+        {event.venue && (
+          <div class="flex items-center gap-2">
+            <svg class="w-5 h-5 text-[#DDC89D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            <span class="font-medium">{event.venue}</span>
+          </div>
+        )}
+        {dayCount > 0 && (
+          <div class="flex items-center gap-2">
+            <svg class="w-5 h-5 text-[#DDC89D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span class="font-medium">{dayCount} Day{dayCount > 1 ? 's' : ''}</span>
+          </div>
+        )}
+      </div>
+
+      <!-- Badges -->
+      <div class="flex flex-wrap items-center gap-3">
+        {event.ce_credits > 0 && (
+          <div class="inline-flex items-center gap-2 bg-[#DDC89D] text-[#0C2044] px-4 py-2 rounded-full font-bold text-sm">
+            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0zM6 18a1 1 0 001-1v-2.065a8.935 8.935 0 00-2-.712V17a1 1 0 001 1z"/>
+            </svg>
+            {event.ce_credits} CE Credits
+          </div>
+        )}
+        {isSoldOut && (
+          <div class="inline-flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-full font-bold text-sm animate-pulse">
+            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/>
+            </svg>
+            SOLD OUT
+          </div>
+        )}
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Countdown Timer (only if upcoming) -->
+{isUpcoming && (
+  <section class="bg-[#0C2044] border-t border-white/10 py-8">
+    <div class="container mx-auto px-4 lg:px-8 max-w-5xl">
+      <div class="text-center mb-6">
+        <h2 class="text-white/60 text-xs uppercase tracking-[0.2em] font-medium mb-1">Course Starts In</h2>
+        <div class="w-12 h-0.5 bg-[#DDC89D] mx-auto rounded-full"></div>
+      </div>
+      <CountdownTimer targetDate={event.start_date} client:load />
+    </div>
+  </section>
+)}
+
+<!-- Main Content -->
+<main class="flex-1 bg-[#F8F9FA]">
+  <div class="container mx-auto px-4 lg:px-8 max-w-7xl py-10 lg:py-14">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-12">
+
+      <!-- Left Column - Main Content -->
+      <div class="lg:col-span-2">
+
+        <!-- Course Description -->
+        {cleanDescription && (
+          <section class="pb-8 mb-8 border-b border-gray-200">
+            <h2 class="text-2xl font-bold text-[#0C2044] mb-5">Course Description</h2>
+            <div class="course-description-content text-gray-700 leading-relaxed" set:html={cleanDescription} />
+          </section>
+        )}
+
+        <!-- Speakers -->
+        {event.speakers && event.speakers.length > 0 && (
+          <section class="pb-8 mb-8 border-b border-gray-200">
+            <h2 class="text-2xl font-bold text-[#0C2044] mb-6">
+              {event.speakers.length > 1 ? 'Instructors' : 'Instructor'}
+            </h2>
+            <div class="space-y-4">
+              {event.speakers.map((speaker: Speaker) => (
+                <div class="flex items-center gap-4">
+                  <div class="flex-shrink-0">
+                    {speaker.photo_url ? (
+                      <img
+                        src={speaker.photo_url}
+                        alt={speaker.name.replace('[TEST] ', '')}
+                        class="w-16 h-16 rounded-full object-cover object-top border-2 border-[#DDC89D] bg-gray-100"
+                      />
+                    ) : (
+                      <div class="w-16 h-16 rounded-full bg-gradient-to-br from-[#173D84] to-[#0C2044] flex items-center justify-center border-2 border-[#DDC89D]">
+                        <span class="text-lg font-bold text-white">
+                          {speaker.name.replace('[TEST] ', '').split(' ').map((n: string) => n[0]).join('').substring(0, 2)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <h3 class="text-lg font-bold text-[#0C2044]">{speaker.name.replace('[TEST] ', '')}</h3>
+                    {speaker.title && <p class="text-sm text-gray-500">{speaker.title}</p>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        <!-- Learning Objectives -->
+        {learningObjectives && learningObjectives.length > 0 && (
+          <section class="pb-8 mb-8 border-b border-gray-200">
+            <h2 class="text-2xl font-bold text-[#0C2044] mb-2">Course Objectives</h2>
+            <p class="text-gray-500 text-sm mb-6">Upon completion of this course, participants will be able to:</p>
+            <ol class="space-y-3">
+              {learningObjectives.map((objective: string, index: number) => (
+                <li class="flex items-start gap-4">
+                  <span class="flex-shrink-0 w-8 h-8 bg-[#0C2044] text-white rounded-full flex items-center justify-center text-sm font-bold mt-0.5">
+                    {index + 1}
+                  </span>
+                  <span class="text-gray-700 leading-relaxed pt-1">{objective}</span>
+                </li>
+              ))}
+            </ol>
+          </section>
+        )}
+
+        <!-- Schedule / Agenda - Numbered Sessions -->
+        {migratedSchedules.length > 0 && (
+          <section class="pb-8 mb-8 border-b border-gray-200">
+            <h2 class="text-2xl font-bold text-[#0C2044] mb-6">Schedule & Agenda</h2>
+
+            {migratedSchedules.map((schedule, dayIndex) => {
+              const dayLabel = schedule.tab_label || `Day ${dayIndex + 1}`;
+              const dayDate = schedule.date
+                ? formatScheduleDate(schedule.date)
+                : getDayName(dayIndex + 1, event.start_date);
+
+              return (
+                <div class={dayIndex > 0 ? 'mt-8' : ''}>
+                  {/* Day Header */}
+                  {migratedSchedules.length > 1 && (
+                    <div class="flex items-center gap-3 mb-4">
+                      <div class="w-10 h-10 bg-[#0B52AC] text-white rounded-lg flex items-center justify-center font-bold text-sm">
+                        D{dayIndex + 1}
+                      </div>
+                      <div>
+                        <h3 class="font-bold text-[#0C2044] text-lg">{dayLabel}</h3>
+                        <p class="text-sm text-gray-500">{dayDate}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Session List */}
+                  <div class="border border-gray-200 rounded-lg overflow-hidden">
+                    {schedule.topics.map((topic, topicIndex) => {
+                      globalTopicIndex++;
+                      const isBreak = topic.name === 'Lunch' || topic.name.includes('Break') || topic.name.includes('Coffee') || topic.name.includes('Registration');
+                      const isEven = topicIndex % 2 === 0;
+
+                      return (
+                        <div class={`flex items-start gap-4 px-4 py-3 ${isBreak ? 'bg-[#DDC89D]/10' : isEven ? 'bg-white' : 'bg-[#F8F9FA]'} ${topicIndex < schedule.topics.length - 1 ? 'border-b border-gray-100' : ''}`}>
+                          {/* Session Number Circle */}
+                          <div class="flex-shrink-0 mt-0.5">
+                            {isBreak ? (
+                              <div class="w-8 h-8 bg-[#DDC89D]/30 rounded-full flex items-center justify-center">
+                                <svg class="w-4 h-4 text-[#0C2044]/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                              </div>
+                            ) : (
+                              <div class="w-8 h-8 bg-[#0C2044] text-white rounded-full flex items-center justify-center text-xs font-bold">
+                                {globalTopicIndex}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Session Content */}
+                          <div class="flex-1 min-w-0">
+                            <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+                              <h4 class={`font-semibold ${isBreak ? 'text-gray-500 italic' : 'text-[#0C2044]'}`}>{topic.name}</h4>
+                              {topic.name.toLowerCase().includes('hands') && <span class="text-xs font-medium bg-green-100 text-green-700 px-2 py-0.5 rounded">Hands-On</span>}
+                              {topic.name.toLowerCase().includes('live') && <span class="text-xs font-medium bg-red-100 text-red-700 px-2 py-0.5 rounded">Live Demo</span>}
+                              {topic.name.toLowerCase().includes('lab') && <span class="text-xs font-medium bg-purple-100 text-purple-700 px-2 py-0.5 rounded">Lab</span>}
+                            </div>
+                            {topic.description && <p class="text-gray-500 text-sm mt-1">{cleanHtmlDescription(topic.description)}</p>}
+                            {topic.location && (
+                              <p class="text-gray-400 text-xs mt-1 flex items-center gap-1">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/></svg>
+                                {topic.location}
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Time */}
+                          <div class="flex-shrink-0 text-right">
+                            <span class="text-sm font-medium text-[#0B52AC]">
+                              {formatTimeRange(topic.start_time, topic.end_time)}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </section>
+        )}
+
+        <!-- Gallery (simple grid, no lightbox) -->
+        {event.gallery_images && event.gallery_images.length > 0 && (
+          <section class="pb-8 mb-8 border-b border-gray-200">
+            <h2 class="text-2xl font-bold text-[#0C2044] mb-6">Gallery</h2>
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+              {event.gallery_images.map((image: string, index: number) => (
+                <div class="aspect-square rounded-lg overflow-hidden">
+                  <img
+                    src={image}
+                    alt={`${cleanTitle} - Image ${index + 1}`}
+                    class="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                    loading="lazy"
+                  />
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        <!-- Contact Information -->
+        <section>
+          <h2 class="text-2xl font-bold text-[#0C2044] mb-5">Contact Information</h2>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="flex items-start gap-3">
+              <div class="w-10 h-10 bg-[#0B52AC]/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                <svg class="w-5 h-5 text-[#0B52AC]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+              </div>
+              <div>
+                <h4 class="font-semibold text-[#0C2044] text-sm mb-0.5">Email</h4>
+                <a href="mailto:gpsdentaltraining@gaprostho.com" class="text-[#0B52AC] hover:underline text-sm">gpsdentaltraining@gaprostho.com</a>
+              </div>
+            </div>
+            <div class="flex items-start gap-3">
+              <div class="w-10 h-10 bg-[#0B52AC]/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                <svg class="w-5 h-5 text-[#0B52AC]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+              </div>
+              <div>
+                <h4 class="font-semibold text-[#0C2044] text-sm mb-0.5">Training Center</h4>
+                <p class="text-gray-600 text-sm">6320 Sugarloaf Parkway, Duluth, GA 30097</p>
+              </div>
+            </div>
+          </div>
+          <div class="mt-5 pt-5 border-t border-gray-200">
+            <p class="text-gray-500 text-xs">
+              GPS Dental Training is an AGD PACE-approved provider. PACE approval does not imply acceptance by a state or provincial board of dentistry.
+            </p>
+          </div>
+        </section>
+
+      </div>
+
+      <!-- Right Column - Sticky Sidebar -->
+      <div class="lg:col-span-1">
+        <div class="sticky top-24 space-y-5">
+
+          <!-- Ticket Selector or Waitlist -->
+          {availability.is_available ? (
+            <TicketSelector eventId={event.id} eventTitle={event.title} client:load />
+          ) : (
+            <WaitlistForm eventId={event.id} eventTitle={event.title} client:load />
+          )}
+
+          <!-- Quick Info -->
+          <div class="bg-white rounded-xl border border-gray-200 p-5">
+            <h3 class="font-bold text-[#0C2044] mb-4 text-sm uppercase tracking-wide">Quick Info</h3>
+            <ul class="space-y-3">
+              <li class="flex items-center justify-between text-sm">
+                <span class="text-gray-500">Date</span>
+                <span class="font-semibold text-[#0C2044]">{dateDisplay}</span>
+              </li>
+              {event.ce_credits > 0 && (
+                <li class="flex items-center justify-between text-sm">
+                  <span class="text-gray-500">CE Credits</span>
+                  <span class="font-semibold text-[#0C2044]">{event.ce_credits} Credits</span>
+                </li>
+              )}
+              {event.venue && (
+                <li class="flex items-center justify-between text-sm">
+                  <span class="text-gray-500">Location</span>
+                  <span class="font-semibold text-[#0C2044] text-right max-w-[60%]">{event.venue}</span>
+                </li>
+              )}
+              {dayCount > 0 && (
+                <li class="flex items-center justify-between text-sm">
+                  <span class="text-gray-500">Duration</span>
+                  <span class="font-semibold text-[#0C2044]">{dayCount} Day{dayCount > 1 ? 's' : ''}</span>
+                </li>
+              )}
+              {event.capacity && (
+                <li class="flex items-center justify-between text-sm">
+                  <span class="text-gray-500">Class Size</span>
+                  <span class="font-semibold text-[#0C2044]">Limited to {event.capacity}</span>
+                </li>
+              )}
+              <li class="flex items-center justify-between text-sm">
+                <span class="text-gray-500">Status</span>
+                <span class={`font-semibold ${isSoldOut ? 'text-red-600' : 'text-green-600'}`}>
+                  {isSoldOut ? 'Sold Out' : 'Available'}
+                </span>
+              </li>
+            </ul>
+          </div>
+
+          <!-- Contact Card -->
+          <div class="bg-[#0C2044] rounded-xl p-5 text-white">
+            <h3 class="font-bold text-white mb-2 text-sm">Have Questions?</h3>
+            <p class="text-white/70 text-sm mb-4">We are here to help with registration, logistics, or course content.</p>
+            <a
+              href="mailto:gpsdentaltraining@gaprostho.com"
+              class="inline-flex items-center gap-2 text-[#DDC89D] text-sm font-semibold hover:gap-3 transition-all"
+            >
+              Contact Us
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
+            </a>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+</main>
+
+<!-- Footer -->
+<Footer client:load />
+
+<!-- Classic Template Styles -->
+<style>
+  /* Course description content styling */
+  .course-description-content p {
+    margin-bottom: 1em;
+  }
+  .course-description-content p:last-child {
+    margin-bottom: 0;
+  }
+  .course-description-content ul,
+  .course-description-content ol {
+    margin-bottom: 1em;
+    padding-left: 1.5em;
+  }
+  .course-description-content li {
+    margin-bottom: 0.25em;
+  }
+  .course-description-content strong,
+  .course-description-content b {
+    color: #0C2044;
+  }
+  .course-description-content a {
+    color: #0B52AC;
+    text-decoration: underline;
+  }
+  .course-description-content a:hover {
+    color: #0C2044;
+  }
+</style>

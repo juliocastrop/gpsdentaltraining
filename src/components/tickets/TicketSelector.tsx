@@ -4,7 +4,7 @@ import Button from '../ui/Button';
 interface TicketType {
   id: string;
   name: string;
-  ticket_type: 'early_bird' | 'general' | 'vip' | 'other';
+  ticket_type: 'early_bird' | 'general' | 'vip' | 'group';
   price: number;
   description?: string;
   features?: string[];
@@ -79,9 +79,9 @@ export default function TicketSelector({ eventId, eventTitle }: TicketSelectorPr
           return a.display_priority - b.display_priority;
         }
 
-        // Default priority: early_bird > general > vip > other
-        const priorityOrder = { early_bird: 1, general: 2, vip: 3, other: 4 };
-        return (priorityOrder[a.ticket_type] || 4) - (priorityOrder[b.ticket_type] || 4);
+        // Default priority: early_bird > general > vip > group
+        const priorityOrder: Record<string, number> = { early_bird: 1, general: 2, vip: 3, group: 4 };
+        return (priorityOrder[a.ticket_type] || 5) - (priorityOrder[b.ticket_type] || 5);
       });
   }
 
@@ -224,6 +224,11 @@ export default function TicketSelector({ eventId, eventTitle }: TicketSelectorPr
             {ticket.ticket_type === 'vip' && !ticket.is_sold_out && (
               <div className="absolute -top-2 -left-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md">
                 VIP
+              </div>
+            )}
+            {ticket.ticket_type === 'group' && !ticket.is_sold_out && (
+              <div className="absolute -top-2 -left-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md">
+                GROUP
               </div>
             )}
 

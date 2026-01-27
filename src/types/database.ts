@@ -36,6 +36,9 @@ export type SeminarRegistrationStatus = 'active' | 'completed' | 'cancelled' | '
 // Event/content status
 export type ContentStatus = 'draft' | 'published' | 'archived';
 
+// Layout template options for event/seminar detail pages
+export type LayoutTemplate = 'modern' | 'classic';
+
 // ============================================================
 // Database Row Types
 // ============================================================
@@ -73,6 +76,7 @@ export interface Event {
   includes: string[] | null;
   prerequisites: string[] | null;
   target_audience: string[] | null;
+  layout_template: LayoutTemplate;
   status: ContentStatus;
   created_at: string;
   updated_at: string;
@@ -109,6 +113,26 @@ export interface ScheduleTopic {
   time: string;
   topic: string;
   description?: string;
+}
+
+export interface ScheduleTopicItem {
+  name: string;
+  start_time: string;
+  end_time: string;
+  speakers: string[];
+  location: string;
+  description: string;
+}
+
+export interface EventSchedule {
+  id: string;
+  event_id: string;
+  schedule_date: string;
+  tab_label: string | null;
+  topics: ScheduleTopicItem[];
+  display_order: number;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface TicketTypeRow {
@@ -378,6 +402,7 @@ export interface Seminar {
   og_image_url: string | null;
   stripe_price_id: string | null;
   stripe_product_id: string | null;
+  layout_template: LayoutTemplate;
   status: 'draft' | 'active' | 'completed' | 'archived';
   created_at: string;
 }

@@ -1,0 +1,179 @@
+---
+/**
+ * Admin Event Detail - GPS Dental Training
+ * View and edit individual event details
+ */
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import EventDetail from '../../../components/admin/EventDetail';
+import { supabaseAdmin } from '../../../lib/supabase/client';
+
+const { id } = Astro.params;
+
+// Check if Clerk is configured
+const clerkConfigured = !!import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY;
+
+// Get user from Clerk if available
+let userId: string | null = null;
+let isAdmin = false;
+let userName = 'Admin';
+let userEmail = 'admin@gpsdentaltraining.com';
+
+try {
+  if (clerkConfigured && Astro.locals.auth) {
+    const auth = Astro.locals.auth();
+    userId = auth?.userId || null;
+
+    if (userId) {
+      const { data: userData } = await supabaseAdmin
+        .from('users')
+        .select('role, first_name, last_name, email')
+        .eq('clerk_id', userId)
+        .single();
+
+      isAdmin = userData?.role === 'admin';
+      if (userData?.first_name) {
+        userName = `${userData.first_name} ${userData.last_name || ''}`.trim();
+      }
+      if (userData?.email) {
+        userEmail = userData.email;
+      }
+    }
+  }
+} catch {
+  isAdmin = true;
+}
+
+if (clerkConfigured && (!userId || !isAdmin)) {
+  return Astro.redirect('/sign-in?redirect_url=/admin/events/' + id);
+}
+
+// Fetch event details
+let event: any = null;
+let ticketTypes: any[] = [];
+let tickets: any[] = [];
+let attendance: any[] = [];
+let waitlist: any[] = [];
+let schedules: any[] = [];
+let speakers: any[] = [];
+
+try {
+  // Get event
+  const { data: eventData, error: eventError } = await supabaseAdmin
+    .from('events')
+    .select(`
+      *,
+      speakers:event_speakers(
+        speaker:speaker_id(id, name, title, bio, photo_url)
+      )
+    `)
+    .eq('id', id)
+    .single();
+
+  if (eventError || !eventData) {
+    return Astro.redirect('/admin/events?error=event_not_found');
+  }
+
+  event = eventData;
+
+  // Get ticket types for this event
+  const { data: ticketTypesData } = await supabaseAdmin
+    .from('ticket_types')
+    .select('*')
+    .eq('event_id', id)
+    .order('price', { ascending: true });
+
+  ticketTypes = ticketTypesData || [];
+
+  // Get sold tickets
+  const { data: ticketsData } = await supabaseAdmin
+    .from('tickets')
+    .select(`
+      id,
+      ticket_code,
+      attendee_name,
+      attendee_email,
+      status,
+      created_at,
+      ticket_type:ticket_type_id(name, price)
+    `)
+    .eq('event_id', id)
+    .order('created_at', { ascending: false })
+    .limit(100);
+
+  tickets = ticketsData || [];
+
+  // Get attendance records
+  const { data: attendanceData } = await supabaseAdmin
+    .from('attendance')
+    .select(`
+      id,
+      checked_in_at,
+      check_in_method,
+      ticket:ticket_id(
+        attendee_name,
+        attendee_email,
+        ticket_code
+      )
+    `)
+    .eq('event_id', id)
+    .order('checked_in_at', { ascending: false });
+
+  attendance = attendanceData || [];
+
+  // Get waitlist
+  const { data: waitlistData } = await supabaseAdmin
+    .from('waitlist')
+    .select(`
+      id,
+      email,
+      first_name,
+      last_name,
+      status,
+      created_at,
+      notified_at
+    `)
+    .eq('event_id', id)
+    .order('position', { ascending: true });
+
+  waitlist = waitlistData || [];
+
+  // Get event schedules (multi-day agenda)
+  const { data: schedulesData } = await supabaseAdmin
+    .from('event_schedules')
+    .select('*')
+    .eq('event_id', id)
+    .order('display_order', { ascending: true })
+    .order('schedule_date', { ascending: true });
+
+  schedules = schedulesData || [];
+
+  // Get all speakers for the schedule topic editor
+  const { data: speakersData } = await supabaseAdmin
+    .from('speakers')
+    .select('id, name, title, photo_url')
+    .order('name', { ascending: true });
+
+  speakers = speakersData || [];
+
+} catch (error) {
+  console.error('Error fetching event details:', error);
+  return Astro.redirect('/admin/events?error=fetch_failed');
+}
+
+const currentPath = Astro.url.pathname;
+---
+
+<AdminLayout title={event?.title || 'Event Details'}>
+  <EventDetail
+    client:load
+    currentPath={currentPath}
+    user={{ name: userName, email: userEmail }}
+    event={event}
+    ticketTypes={ticketTypes}
+    tickets={tickets}
+    attendance={attendance}
+    waitlist={waitlist}
+    schedules={schedules}
+    allSpeakers={speakers}
+  />
+</AdminLayout>

@@ -1,0 +1,51 @@
+---
+/**
+ * Admin Layout - GPS Dental Training
+ * Dedicated layout for admin panel with sidebar navigation
+ */
+import '../styles/global.css';
+import { getSiteSettings } from '../lib/data/site-settings-loader';
+
+const siteSettings = await getSiteSettings();
+
+interface Props {
+  title: string;
+  description?: string;
+}
+
+const { title, description = 'GPS Dental Training Admin Panel' } = Astro.props;
+
+// Check if Clerk is configured
+const clerkConfigured = !!import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY;
+---
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="description" content={description} />
+
+    <link rel="icon" href={siteSettings.favicon_url} />
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+    <title>{title} | Admin | GPS Dental Training</title>
+
+    <style>
+      body {
+        font-family: 'Inter', sans-serif;
+      }
+    </style>
+  </head>
+
+  <body class="min-h-screen bg-gray-50">
+    <div id="admin-root">
+      <slot />
+    </div>
+  </body>
+</html>

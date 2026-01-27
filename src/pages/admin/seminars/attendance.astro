@@ -1,0 +1,126 @@
+---
+/**
+ * Admin Seminar Session Attendance - GPS Dental Training
+ * Check-in and track attendance for seminar sessions
+ */
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import SeminarAttendance from '../../../components/admin/SeminarAttendance';
+import { supabaseAdmin } from '../../../lib/supabase/client';
+
+// Check if Clerk is configured
+const clerkConfigured = !!import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY;
+
+// Get user from Clerk if available
+let userId: string | null = null;
+let isAdmin = false;
+let userName = 'Admin';
+let userEmail = 'admin@gpsdentaltraining.com';
+
+try {
+  if (clerkConfigured && Astro.locals.auth) {
+    const auth = Astro.locals.auth();
+    userId = auth?.userId || null;
+
+    if (userId) {
+      const { data: userData } = await supabaseAdmin
+        .from('users')
+        .select('role, first_name, last_name, email')
+        .eq('clerk_id', userId)
+        .single();
+
+      isAdmin = userData?.role === 'admin';
+      if (userData?.first_name) {
+        userName = `${userData.first_name} ${userData.last_name || ''}`.trim();
+      }
+      if (userData?.email) {
+        userEmail = userData.email;
+      }
+    }
+  }
+} catch {
+  isAdmin = true;
+}
+
+if (clerkConfigured && (!userId || !isAdmin)) {
+  return Astro.redirect('/sign-in?redirect_url=/admin/seminars/attendance');
+}
+
+// Get filter params
+const seminarFilter = Astro.url.searchParams.get('seminar_id') || '';
+const sessionFilter = Astro.url.searchParams.get('session_id') || '';
+
+// Fetch all seminars
+const { data: seminars } = await supabaseAdmin
+  .from('seminars')
+  .select('id, title, year')
+  .order('year', { ascending: false });
+
+// Fetch sessions for selected seminar
+let sessions: any[] = [];
+if (seminarFilter) {
+  const { data: sessionData } = await supabaseAdmin
+    .from('seminar_sessions')
+    .select('id, session_number, session_date, topic')
+    .eq('seminar_id', seminarFilter)
+    .order('session_number', { ascending: true });
+  sessions = sessionData || [];
+}
+
+// Fetch attendance records
+let attendanceQuery = supabaseAdmin
+  .from('seminar_attendance')
+  .select(`
+    *,
+    registration:registration_id(
+      id,
+      user:user_id(id, first_name, last_name, email)
+    ),
+    session:session_id(id, session_number, session_date, topic)
+  `)
+  .order('checked_in_at', { ascending: false });
+
+if (seminarFilter) {
+  attendanceQuery = attendanceQuery.eq('seminar_id', seminarFilter);
+}
+
+if (sessionFilter) {
+  attendanceQuery = attendanceQuery.eq('session_id', sessionFilter);
+}
+
+const { data: attendance, error } = await attendanceQuery.limit(200);
+
+if (error) {
+  console.error('Error fetching attendance:', error);
+}
+
+// Fetch registrations for check-in (active only)
+let registrations: any[] = [];
+if (seminarFilter) {
+  const { data: regData } = await supabaseAdmin
+    .from('seminar_registrations')
+    .select(`
+      id,
+      user:user_id(id, first_name, last_name, email),
+      sessions_completed
+    `)
+    .eq('seminar_id', seminarFilter)
+    .eq('status', 'active');
+  registrations = regData || [];
+}
+
+const currentPath = Astro.url.pathname;
+---
+
+<AdminLayout title="Seminar Attendance">
+  <SeminarAttendance
+    client:load
+    currentPath={currentPath}
+    user={{ name: userName, email: userEmail }}
+    attendance={attendance || []}
+    seminars={seminars || []}
+    sessions={sessions}
+    registrations={registrations}
+    seminarFilter={seminarFilter}
+    sessionFilter={sessionFilter}
+  />
+</AdminLayout>

@@ -1,0 +1,101 @@
+---
+/**
+ * Admin Ticket Types Management - GPS Dental Training
+ * Create, edit, and manage ticket types for events
+ */
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import TicketTypesManagement from '../../../components/admin/TicketTypesManagement';
+import { supabaseAdmin } from '../../../lib/supabase/client';
+
+// Check if Clerk is configured
+const clerkConfigured = !!import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY;
+
+// Get user from Clerk if available
+let userId: string | null = null;
+let isAdmin = false;
+let userName = 'Admin';
+let userEmail = 'admin@gpsdentaltraining.com';
+
+try {
+  if (clerkConfigured && Astro.locals.auth) {
+    const auth = Astro.locals.auth();
+    userId = auth?.userId || null;
+
+    if (userId) {
+      const { data: userData } = await supabaseAdmin
+        .from('users')
+        .select('role, first_name, last_name, email')
+        .eq('clerk_id', userId)
+        .single();
+
+      isAdmin = userData?.role === 'admin';
+      if (userData?.first_name) {
+        userName = `${userData.first_name} ${userData.last_name || ''}`.trim();
+      }
+      if (userData?.email) {
+        userEmail = userData.email;
+      }
+    }
+  }
+} catch {
+  isAdmin = true;
+}
+
+if (clerkConfigured && (!userId || !isAdmin)) {
+  return Astro.redirect('/sign-in?redirect_url=/admin/ticket-types');
+}
+
+// Get filter params
+const eventFilter = Astro.url.searchParams.get('event_id') || '';
+
+// Fetch all events
+const { data: events } = await supabaseAdmin
+  .from('events')
+  .select('id, title, slug, start_date')
+  .order('start_date', { ascending: false });
+
+// Build ticket types query
+let ticketTypesQuery = supabaseAdmin
+  .from('ticket_types')
+  .select(`
+    *,
+    event:event_id(id, title, slug, start_date)
+  `)
+  .order('created_at', { ascending: false });
+
+if (eventFilter) {
+  ticketTypesQuery = ticketTypesQuery.eq('event_id', eventFilter);
+}
+
+const { data: ticketTypes, error: ticketTypesError } = await ticketTypesQuery;
+
+if (ticketTypesError) {
+  console.error('Error fetching ticket types:', ticketTypesError);
+}
+
+// Get sold counts for each ticket type
+const ticketTypesWithCounts = await Promise.all(
+  (ticketTypes || []).map(async (tt) => {
+    const { count } = await supabaseAdmin
+      .from('tickets')
+      .select('*', { count: 'exact', head: true })
+      .eq('ticket_type_id', tt.id)
+      .neq('status', 'cancelled');
+
+    return { ...tt, sold_count: count || 0 };
+  })
+);
+
+const currentPath = Astro.url.pathname;
+---
+
+<AdminLayout title="Ticket Types">
+  <TicketTypesManagement
+    client:load
+    currentPath={currentPath}
+    user={{ name: userName, email: userEmail }}
+    ticketTypes={ticketTypesWithCounts || []}
+    events={events || []}
+    eventFilter={eventFilter}
+  />
+</AdminLayout>

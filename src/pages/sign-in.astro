@@ -4,6 +4,8 @@
  * Styled to match the current WordPress login page design
  */
 import '../styles/global.css';
+import { getSiteSettings } from '../lib/data/site-settings-loader';
+const siteSettings = await getSiteSettings();
 import { SignIn } from '@clerk/astro/react';
 
 const afterSignInUrl = Astro.url.searchParams.get('redirect_url') || '/account';
@@ -16,7 +18,7 @@ const afterSignInUrl = Astro.url.searchParams.get('redirect_url') || '/account';
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="robots" content="noindex, nofollow" />
 
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" href={siteSettings.favicon_url} />
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -145,7 +147,7 @@ const afterSignInUrl = Astro.url.searchParams.get('redirect_url') || '/account';
           <div>
             <div class="flex items-center mb-4">
               <img
-                src="/logo-white.svg"
+                src={siteSettings.logo_white_url}
                 alt="GPS Dental Training"
                 class="h-10"
                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"

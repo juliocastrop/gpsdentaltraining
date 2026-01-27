@@ -61,11 +61,16 @@ export const POST: APIRoute = async ({ request }) => {
     // Send confirmation email
     if (event) {
       try {
-        await sendWaitlistConfirmationEmail(email, {
+        const emailResult = await sendWaitlistConfirmationEmail(email, {
           firstName: firstName?.trim(),
           eventTitle: event.title,
           position: waitlistEntry.position,
         });
+        if (!emailResult.success) {
+          console.error('Waitlist confirmation email failed:', emailResult.error);
+        } else {
+          console.log('Waitlist confirmation email sent:', emailResult.messageId);
+        }
       } catch (emailError) {
         console.error('Failed to send waitlist confirmation email:', emailError);
         // Don't fail the request if email fails

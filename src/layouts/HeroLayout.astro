@@ -5,6 +5,9 @@
  */
 import '../styles/global.css';
 import Navbar from '../components/layout/Navbar';
+import { getSiteSettings } from '../lib/data/site-settings-loader';
+
+const siteSettings = await getSiteSettings();
 
 interface Props {
   title: string;
@@ -20,8 +23,8 @@ const {
   description = 'GPS Dental Training - Professional dental education courses and CE credits',
   ogImage = '/og-default.jpg',
   noIndex = false,
-  logo = '/logo.svg',
-  logoWhite = '/logo-white.svg',
+  logo = siteSettings.logo_url,
+  logoWhite = siteSettings.logo_white_url,
 } = Astro.props;
 
 const siteUrl = import.meta.env.PUBLIC_APP_URL || 'https://gpsdentaltraining.com';
@@ -37,7 +40,7 @@ const fullOgImage = ogImage.startsWith('http') ? ogImage : `${siteUrl}${ogImage}
     {noIndex && <meta name="robots" content="noindex, nofollow" />}
 
     <!-- Favicon -->
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" href={siteSettings.favicon_url} />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
 
     <!-- Open Graph -->

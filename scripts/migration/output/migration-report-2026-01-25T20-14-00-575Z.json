@@ -1,0 +1,51 @@
+{
+  "timestamp": "2026-01-25T20:14:00.575Z",
+  "dryRun": false,
+  "results": [
+    {
+      "entity": "orders",
+      "total": 18,
+      "migrated": 18,
+      "skipped": 0,
+      "failed": 0,
+      "errors": [],
+      "startTime": "2026-01-25T20:13:53.090Z",
+      "endTime": "2026-01-25T20:14:00.575Z"
+    },
+    {
+      "entity": "order_items",
+      "total": 18,
+      "migrated": 18,
+      "skipped": 0,
+      "failed": 0,
+      "errors": [],
+      "startTime": "2026-01-25T20:13:53.090Z",
+      "endTime": "2026-01-25T20:14:00.575Z"
+    },
+    {
+      "entity": "tickets",
+      "total": 7,
+      "migrated": 7,
+      "skipped": 0,
+      "failed": 0,
+      "errors": [],
+      "startTime": "2026-01-25T20:13:53.090Z",
+      "endTime": "2026-01-25T20:14:00.575Z"
+    },
+    {
+      "entity": "attendance",
+      "total": 1,
+      "migrated": 1,
+      "skipped": 0,
+      "failed": 0,
+      "errors": [],
+      "startTime": "2026-01-25T20:13:53.090Z",
+      "endTime": "2026-01-25T20:14:00.575Z"
+    }
+  ],
+  "summary": {
+    "totalMigrated": 44,
+    "totalSkipped": 0,
+    "totalFailed": 0
+  }
+}

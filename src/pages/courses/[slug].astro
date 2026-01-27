@@ -1,34 +1,20 @@
 ---
 /**
  * Course Detail Page - GPS Dental Training
- * Dynamic course page with full content from database
- *
- * Structure:
- * 1. Hero
- * 2. Countdown Timer (full width)
- * 3. Course Description
- * 4. Video Section (optional - controlled from backend)
- * 5. Speaker
- * 6. Course Objectives
- * 7. Gallery Section (optional - controlled from backend)
- * 8. Contact Information
- * 9. Agenda/Schedule
- * 10. Sponsors
- *
- * Sidebar (sticky):
- * - Ticket Selector / Waitlist
- * - Quick Info
- * - Questions?
+ * Template router: delegates rendering to Modern or Classic template
+ * based on event.layout_template column
  */
 import '../../styles/global.css';
-import Navbar from '../../components/layout/Navbar';
-import Footer from '../../components/layout/Footer';
-import CountdownTimer from '../../components/events/CountdownTimer';
-import TicketSelector from '../../components/tickets/TicketSelector';
-import WaitlistForm from '../../components/tickets/WaitlistForm';
+import { getSiteSettings } from '../../lib/data/site-settings-loader';
+const siteSettings = await getSiteSettings();
 import { getEventBySlug, getMediaUrl } from '../../lib/strapi/client';
 import { getEventWithSpeakers, getEventAvailability, getEventBySlug as getSupabaseEventBySlug } from '../../lib/supabase/queries';
-import type { ScheduleTopic, Speaker } from '../../types/database';
+import { supabase } from '../../lib/supabase/client';
+import type { ScheduleTopic } from '../../types/database';
+
+// Template components
+import ModernCourseDetail from '../../components/templates/courses/ModernCourseDetail.astro';
+import ClassicCourseDetail from '../../components/templates/courses/ClassicCourseDetail.astro';
 
 const { slug } = Astro.params;
 
@@ -81,6 +67,10 @@ try {
     try {
       const supabaseEvent = await getSupabaseEventBySlug(slug);
       eventId = supabaseEvent?.id || strapiEvent.id.toString();
+      // Merge layout_template from Supabase if available
+      if (supabaseEvent?.layout_template) {
+        event.layout_template = supabaseEvent.layout_template;
+      }
     } catch {
       eventId = strapiEvent.id.toString();
     }
@@ -95,6 +85,23 @@ try {
 } catch (error) {
   console.error('Error loading event:', error);
   return Astro.redirect('/courses');
+}
+
+// Fetch event_schedules from Supabase (the proper schedule table)
+let eventSchedules: Array<{ schedule_date: string; tab_label: string | null; topics: any[]; display_order: number }> = [];
+try {
+  const { data: schedulesData } = await supabase
+    .from('event_schedules')
+    .select('schedule_date, tab_label, topics, display_order')
+    .eq('event_id', eventId)
+    .order('display_order', { ascending: true })
+    .order('schedule_date', { ascending: true });
+
+  if (schedulesData && schedulesData.length > 0) {
+    eventSchedules = schedulesData;
+  }
+} catch {
+  // Table may not exist or query failed - fall back to schedule_topics
 }
 
 // Helper functions
@@ -126,29 +133,103 @@ function formatDateRange(startDate: string, endDate: string | null): string {
   return `${formatDateShort(startDate)} - ${formatDateShort(endDate)}`;
 }
 
-function groupTopicsByDay(topics: ScheduleTopic[] | null): Map<number, ScheduleTopic[]> {
-  const grouped = new Map<number, ScheduleTopic[]>();
-  if (!topics) return grouped;
-
-  for (const topic of topics) {
-    const day = topic.day || 1;
-    if (!grouped.has(day)) grouped.set(day, []);
-    grouped.get(day)!.push(topic);
-  }
-  return grouped;
+// Interface for new schedule format from WordPress migration
+interface MigratedScheduleTopic {
+  name: string;
+  start_time: string;
+  end_time: string;
+  speakers: number[];
+  location: string;
+  description: string;
 }
 
-function getDayName(dayNum: number, startDate: string): string {
-  const date = new Date(startDate);
-  date.setDate(date.getDate() + dayNum - 1);
-  return date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+interface MigratedSchedule {
+  date: string;
+  tab_label: string;
+  topics: MigratedScheduleTopic[];
+}
+
+interface MigratedScheduleData {
+  objectives?: string[];
+  schedules?: MigratedSchedule[];
+}
+
+// Parse schedule_topics which can be in old format (array of ScheduleTopic) or new format (MigratedScheduleData)
+function parseScheduleData(scheduleTopics: any): { objectives: string[], schedules: MigratedSchedule[] } {
+  if (!scheduleTopics) {
+    return { objectives: [], schedules: [] };
+  }
+
+  // Check if it's the new migrated format with objectives and schedules
+  if (scheduleTopics.objectives || scheduleTopics.schedules) {
+    return {
+      objectives: scheduleTopics.objectives || [],
+      schedules: scheduleTopics.schedules || [],
+    };
+  }
+
+  // Old format: array of ScheduleTopic with day, time, topic
+  if (Array.isArray(scheduleTopics)) {
+    // Group by day and convert to new format
+    const grouped = new Map<number, ScheduleTopic[]>();
+    for (const topic of scheduleTopics) {
+      const day = topic.day || 1;
+      if (!grouped.has(day)) grouped.set(day, []);
+      grouped.get(day)!.push(topic);
+    }
+
+    const schedules: MigratedSchedule[] = [];
+    for (const [day, topics] of grouped) {
+      schedules.push({
+        date: '', // Old format doesn't have dates
+        tab_label: `Day ${day}`,
+        topics: topics.map(t => ({
+          name: t.topic,
+          start_time: t.time?.split(' - ')[0] || '',
+          end_time: t.time?.split(' - ')[1] || '',
+          speakers: [],
+          location: '',
+          description: t.description || '',
+        })),
+      });
+    }
+
+    return { objectives: [], schedules };
+  }
+
+  return { objectives: [], schedules: [] };
 }
 
 const dateDisplay = formatDateRange(event.start_date, event.end_date);
-const scheduleByDay = groupTopicsByDay(event.schedule_topics);
-const isUpcoming = new Date(event.start_date) > new Date();
-const dayCount = scheduleByDay.size;
 const cleanTitle = event.title.replace('[TEST] ', '');
+
+// Use event_schedules table (preferred) or fall back to schedule_topics JSONB
+let migratedSchedules: MigratedSchedule[] = [];
+let migratedObjectives: string[] = [];
+
+if (eventSchedules.length > 0) {
+  // Use the proper event_schedules table data
+  migratedSchedules = eventSchedules.map(s => ({
+    date: s.schedule_date || '',
+    tab_label: s.tab_label || '',
+    topics: (s.topics || []).map((t: any) => ({
+      name: t.name || '',
+      start_time: t.start_time || '',
+      end_time: t.end_time || '',
+      speakers: t.speakers || [],
+      location: t.location || '',
+      description: t.description || '',
+    })),
+  }));
+} else {
+  // Fall back to schedule_topics on events table
+  const parsed = parseScheduleData(event.schedule_topics);
+  migratedSchedules = parsed.schedules;
+  migratedObjectives = parsed.objectives;
+}
+
+const isUpcoming = new Date(event.start_date) > new Date();
+const dayCount = migratedSchedules.length;
 
 // Learning objectives - from database field or extract from description as fallback
 function extractObjectivesFromDescription(description: string | null): string[] {
@@ -172,845 +253,43 @@ function removeObjectivesFromDescription(description: string | null): string | n
   return description.replace(/<h3>Learning Objectives<\/h3>\s*<ul>[\s\S]*?<\/ul>/i, '');
 }
 
-const learningObjectives = event.learning_objectives && event.learning_objectives.length > 0
-  ? event.learning_objectives
-  : extractObjectivesFromDescription(event.description);
+// Priority: migrated objectives > learning_objectives field > extracted from description
+const learningObjectives = migratedObjectives.length > 0
+  ? migratedObjectives
+  : (event.learning_objectives && event.learning_objectives.length > 0
+    ? event.learning_objectives
+    : extractObjectivesFromDescription(event.description));
 
 // Clean description if we extracted objectives from it
-const cleanDescription = learningObjectives.length > 0 && !event.learning_objectives
+const cleanDescription = learningObjectives.length > 0 && !event.learning_objectives && migratedObjectives.length === 0
   ? removeObjectivesFromDescription(event.description)
   : event.description;
 
-// Sponsors data - This section is static for now but can be made dynamic from backend
-// by adding a sponsors relation to events or a global sponsors table
+// Check if event is sold out
+const isSoldOut = availability?.is_sold_out || false;
+
+// Determine which template to use
+const layoutTemplate = event.layout_template || 'modern';
+
+// Template props
+const templateProps = {
+  event,
+  availability,
+  siteSettings,
+  cleanTitle,
+  cleanDescription,
+  dateDisplay,
+  learningObjectives,
+  migratedSchedules,
+  isUpcoming,
+  isSoldOut,
+  dayCount,
+  url: Astro.url,
+};
 ---
 
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content={event.description?.substring(0, 160).replace(/<[^>]*>/g, '') || `${cleanTitle} - GPS Dental Training`} />
-
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-
-    <!-- Open Graph -->
-    <meta property="og:type" content="website" />
-    <meta property="og:url" content={Astro.url.href} />
-    <meta property="og:title" content={`${cleanTitle} | GPS Dental Training`} />
-    <meta property="og:description" content={event.description?.substring(0, 160).replace(/<[^>]*>/g, '') || ''} />
-    <meta property="og:image" content={event.featured_image_url || '/og-default.jpg'} />
-
-    <!-- Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
-
-    <title>{cleanTitle} | GPS Dental Training</title>
-  </head>
-
-  <body class="min-h-screen flex flex-col bg-white">
-    <!-- Navigation -->
-    <Navbar
-      logo="/logo.svg"
-      logoWhite="/logo-white.svg"
-      transparent={true}
-      client:load
-    />
-
-    <!-- Hero Section -->
-    <section class="relative min-h-[60vh] lg:min-h-[70vh] flex items-end">
-      <!-- Background Image -->
-      <div class="absolute inset-0 z-0">
-        {event.featured_image_url ? (
-          <img
-            src={event.featured_image_url}
-            alt={cleanTitle}
-            class="w-full h-full object-cover"
-          />
-        ) : (
-          <div class="w-full h-full bg-gradient-to-br from-[#173D84] to-[#0C2044]"></div>
-        )}
-        <!-- Gradient Overlay -->
-        <div class="absolute inset-0 bg-gradient-to-t from-[#0C2044] via-[#0C2044]/70 to-transparent"></div>
-      </div>
-
-      <!-- Hero Content -->
-      <div class="relative z-10 w-full pb-12 pt-24">
-        <div class="container mx-auto px-4 lg:px-8 max-w-7xl">
-          <div class="max-w-4xl">
-            <!-- CE Credits Badge -->
-            {event.ce_credits > 0 && (
-              <div class="inline-flex items-center gap-2 bg-[#DDC89D] text-[#0C2044] px-4 py-2 rounded-full font-bold text-sm mb-6 shadow-lg">
-                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0zM6 18a1 1 0 001-1v-2.065a8.935 8.935 0 00-2-.712V17a1 1 0 001 1z"/>
-                </svg>
-                {event.ce_credits} CE Credits
-              </div>
-            )}
-
-            <!-- Title -->
-            <h1 class="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white mb-6 leading-tight font-heading">
-              {cleanTitle}
-            </h1>
-
-            <!-- Meta Info -->
-            <div class="flex flex-wrap items-center gap-6 text-white/90 text-lg">
-              <!-- Date -->
-              <div class="flex items-center gap-2">
-                <svg class="w-6 h-6 text-[#DDC89D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-                <span class="font-medium">{dateDisplay}</span>
-              </div>
-
-              <!-- Location -->
-              {event.venue && (
-                <div class="flex items-center gap-2">
-                  <svg class="w-6 h-6 text-[#DDC89D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                  <span class="font-medium">{event.venue}</span>
-                </div>
-              )}
-
-              <!-- Duration -->
-              {dayCount > 0 && (
-                <div class="flex items-center gap-2">
-                  <svg class="w-6 h-6 text-[#DDC89D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <span class="font-medium">{dayCount} Day{dayCount > 1 ? 's' : ''}</span>
-                </div>
-              )}
-            </div>
-
-            <!-- Share Buttons in Hero -->
-            <div class="flex items-center gap-3 mt-8">
-              <span class="text-white/60 text-sm">Share:</span>
-              <a
-                href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(Astro.url.href)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                class="w-10 h-10 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white transition-colors"
-                aria-label="Share on Facebook"
-              >
-                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-                </svg>
-              </a>
-              <a
-                href={`https://twitter.com/intent/tweet?url=${encodeURIComponent(Astro.url.href)}&text=${encodeURIComponent(cleanTitle)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                class="w-10 h-10 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white transition-colors"
-                aria-label="Share on X"
-              >
-                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
-                </svg>
-              </a>
-              <a
-                href={`https://www.linkedin.com/shareArticle?mini=true&url=${encodeURIComponent(Astro.url.href)}&title=${encodeURIComponent(cleanTitle)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                class="w-10 h-10 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white transition-colors"
-                aria-label="Share on LinkedIn"
-              >
-                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
-                </svg>
-              </a>
-              <a
-                href={`mailto:?subject=${encodeURIComponent(cleanTitle)}&body=${encodeURIComponent(`Check out this dental course: ${Astro.url.href}`)}`}
-                class="w-10 h-10 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white transition-colors"
-                aria-label="Share via Email"
-              >
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
-                </svg>
-              </a>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Countdown Timer Section - Full Width Prominent -->
-    {isUpcoming && (
-      <section class="bg-gradient-to-r from-[#0C2044] via-[#173D84] to-[#0C2044] py-10 md:py-14 relative overflow-hidden">
-        <!-- Decorative elements -->
-        <div class="absolute inset-0 opacity-10">
-          <div class="absolute top-0 left-1/4 w-64 h-64 bg-[#DDC89D] rounded-full blur-3xl"></div>
-          <div class="absolute bottom-0 right-1/4 w-64 h-64 bg-[#26ACF5] rounded-full blur-3xl"></div>
-        </div>
-
-        <div class="container mx-auto px-4 lg:px-8 max-w-5xl relative z-10">
-          <div class="text-center mb-8">
-            <h2 class="text-white/60 text-sm md:text-base uppercase tracking-[0.2em] font-medium mb-2">
-              Course Starts In
-            </h2>
-            <div class="w-16 h-1 bg-[#DDC89D] mx-auto rounded-full"></div>
-          </div>
-
-          <CountdownTimer targetDate={event.start_date} client:load />
-
-          <div class="text-center mt-8">
-            <p class="text-white/70 text-sm md:text-base">
-              <span class="text-[#DDC89D] font-semibold">{dateDisplay}</span>
-              {event.venue && <span class="mx-2">•</span>}
-              {event.venue && <span>{event.venue}</span>}
-            </p>
-          </div>
-        </div>
-      </section>
-    )}
-
-    <!-- Main Content -->
-    <main class="flex-1 bg-[#F8F9FA]">
-      <div class="container mx-auto px-4 lg:px-8 max-w-7xl py-12 lg:py-16">
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-12">
-
-          <!-- Left Column - Main Content -->
-          <div class="lg:col-span-2 space-y-10 lg:space-y-12">
-
-            <!-- 1. Course Description -->
-            {cleanDescription && (
-              <div class="bg-white rounded-2xl shadow-lg p-8 lg:p-12">
-                <h2 class="text-2xl lg:text-3xl font-bold text-[#0C2044] mb-8 flex items-center gap-4">
-                  <span class="w-12 h-12 bg-gradient-to-br from-[#DDC89D] to-[#BFAC87] rounded-xl flex items-center justify-center shadow-lg">
-                    <svg class="w-6 h-6 text-[#0C2044]" fill="currentColor" viewBox="0 0 20 20">
-                      <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
-                    </svg>
-                  </span>
-                  <span>Course Description</span>
-                </h2>
-                <div class="course-description-content" set:html={cleanDescription} />
-              </div>
-            )}
-
-            <!-- 2. Video Section (Optional - controlled from backend) -->
-            {event.video_url && (
-              <div class="bg-white rounded-2xl shadow-lg p-8 lg:p-12">
-                <h2 class="text-2xl lg:text-3xl font-bold text-[#0C2044] mb-8 flex items-center gap-4">
-                  <span class="w-12 h-12 bg-gradient-to-br from-[#26ACF5] to-[#0B52AC] rounded-xl flex items-center justify-center shadow-lg">
-                    <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
-                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"/>
-                    </svg>
-                  </span>
-                  <span>Course Preview</span>
-                </h2>
-                <div class="relative aspect-video rounded-xl overflow-hidden bg-[#0C2044] shadow-xl">
-                  {event.video_url.includes('youtube.com') || event.video_url.includes('youtu.be') ? (
-                    <iframe
-                      src={event.video_url.replace('watch?v=', 'embed/').replace('youtu.be/', 'youtube.com/embed/')}
-                      title="Course Preview Video"
-                      class="absolute inset-0 w-full h-full"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                      allowfullscreen
-                    ></iframe>
-                  ) : event.video_url.includes('vimeo.com') ? (
-                    <iframe
-                      src={event.video_url.replace('vimeo.com/', 'player.vimeo.com/video/')}
-                      title="Course Preview Video"
-                      class="absolute inset-0 w-full h-full"
-                      allow="autoplay; fullscreen; picture-in-picture"
-                      allowfullscreen
-                    ></iframe>
-                  ) : (
-                    <video
-                      src={event.video_url}
-                      controls
-                      class="absolute inset-0 w-full h-full object-cover"
-                      poster={event.featured_image_url || undefined}
-                    >
-                      Your browser does not support the video tag.
-                    </video>
-                  )}
-                </div>
-              </div>
-            )}
-
-            <!-- 3. Speakers Section (Optional - controlled from backend) -->
-            {event.speakers && event.speakers.length > 0 && (
-              <div class="bg-white rounded-2xl shadow-lg p-8 lg:p-12">
-                <h2 class="text-2xl lg:text-3xl font-bold text-[#0C2044] mb-8 flex items-center gap-4">
-                  <span class="w-12 h-12 bg-gradient-to-br from-[#0B52AC] to-[#173D84] rounded-xl flex items-center justify-center shadow-lg">
-                    <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/>
-                    </svg>
-                  </span>
-                  <span>{event.speakers.length > 1 ? 'Meet Your Instructors' : 'Meet Your Instructor'}</span>
-                </h2>
-
-                <div class="space-y-8">
-                  {event.speakers.map((speaker: Speaker) => (
-                    <div class="flex flex-col md:flex-row gap-6 p-6 bg-[#F8F9FA] rounded-xl hover:shadow-md transition-shadow">
-                      <!-- Speaker Photo -->
-                      <div class="flex-shrink-0">
-                        {speaker.photo_url ? (
-                          <img
-                            src={speaker.photo_url}
-                            alt={speaker.name.replace('[TEST] ', '')}
-                            class="w-32 h-32 md:w-40 md:h-40 rounded-xl object-cover shadow-lg"
-                          />
-                        ) : (
-                          <div class="w-32 h-32 md:w-40 md:h-40 rounded-xl bg-gradient-to-br from-[#173D84] to-[#0C2044] flex items-center justify-center">
-                            <span class="text-4xl font-bold text-white">
-                              {speaker.name.replace('[TEST] ', '').split(' ').map((n: string) => n[0]).join('').substring(0, 2)}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-
-                      <!-- Speaker Info -->
-                      <div class="flex-1">
-                        <h3 class="text-xl font-bold text-[#0C2044] mb-1">
-                          {speaker.name.replace('[TEST] ', '')}
-                        </h3>
-                        {speaker.title && (
-                          <p class="text-[#DDC89D] font-semibold mb-3">{speaker.title}</p>
-                        )}
-                        {speaker.bio && (
-                          <p class="text-gray-600 leading-relaxed">{speaker.bio}</p>
-                        )}
-
-                        <!-- Social Links -->
-                        {speaker.social_links && Object.keys(speaker.social_links).length > 0 && (
-                          <div class="flex gap-3 mt-4">
-                            {speaker.social_links.linkedin && (
-                              <a href={speaker.social_links.linkedin} target="_blank" rel="noopener noreferrer" class="text-[#0B52AC] hover:text-[#0C2044] transition-colors">
-                                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                                  <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
-                                </svg>
-                              </a>
-                            )}
-                            {speaker.social_links.twitter && (
-                              <a href={speaker.social_links.twitter} target="_blank" rel="noopener noreferrer" class="text-[#0B52AC] hover:text-[#0C2044] transition-colors">
-                                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
-                                </svg>
-                              </a>
-                            )}
-                            {speaker.social_links.website && (
-                              <a href={speaker.social_links.website} target="_blank" rel="noopener noreferrer" class="text-[#0B52AC] hover:text-[#0C2044] transition-colors">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/>
-                                </svg>
-                              </a>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <!-- 4. Course Objectives (Optional - controlled from backend) -->
-            {learningObjectives && learningObjectives.length > 0 && (
-              <div class="bg-gradient-to-br from-[#0C2044] to-[#173D84] rounded-2xl shadow-xl p-8 lg:p-12 text-white relative overflow-hidden">
-                <!-- Decorative element -->
-                <div class="absolute top-0 right-0 w-64 h-64 bg-[#DDC89D] rounded-full opacity-5 translate-x-1/2 -translate-y-1/2"></div>
-
-                <h2 class="text-2xl lg:text-3xl font-bold text-white mb-8 flex items-center gap-4 relative z-10">
-                  <span class="w-12 h-12 bg-gradient-to-br from-[#DDC89D] to-[#BFAC87] rounded-xl flex items-center justify-center shadow-lg">
-                    <svg class="w-6 h-6 text-[#0C2044]" fill="currentColor" viewBox="0 0 20 20">
-                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                    </svg>
-                  </span>
-                  <span>Course Objectives</span>
-                </h2>
-                <p class="text-white/70 mb-8 text-lg relative z-10">Upon completion of this course, participants will be able to:</p>
-                <ul class="space-y-5 relative z-10">
-                  {learningObjectives.map((objective: string) => (
-                    <li class="flex items-start gap-4 bg-white/5 rounded-xl p-4 hover:bg-white/10 transition-colors">
-                      <span class="flex-shrink-0 w-8 h-8 bg-[#DDC89D] rounded-lg flex items-center justify-center mt-0.5 shadow-md">
-                        <svg class="w-5 h-5 text-[#0C2044]" fill="currentColor" viewBox="0 0 20 20">
-                          <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
-                        </svg>
-                      </span>
-                      <span class="text-white/90 leading-relaxed text-base lg:text-lg">{objective}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            <!-- 5. Gallery Section (Optional - controlled from backend) -->
-            {event.gallery_images && event.gallery_images.length > 0 && (
-              <div class="bg-white rounded-2xl shadow-lg p-8 lg:p-12">
-                <h2 class="text-2xl lg:text-3xl font-bold text-[#0C2044] mb-8 flex items-center gap-4">
-                  <span class="w-12 h-12 bg-gradient-to-br from-[#DDC89D] to-[#BFAC87] rounded-xl flex items-center justify-center shadow-lg">
-                    <svg class="w-6 h-6 text-[#0C2044]" fill="currentColor" viewBox="0 0 20 20">
-                      <path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd"/>
-                    </svg>
-                  </span>
-                  <span>Course Gallery</span>
-                </h2>
-
-                <!-- Gallery Grid -->
-                <div class="grid grid-cols-2 md:grid-cols-3 gap-4" id="gallery-grid">
-                  {event.gallery_images.map((image: string, index: number) => (
-                    <button
-                      type="button"
-                      class="gallery-item aspect-square rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 hover:scale-[1.02] cursor-pointer group relative"
-                      data-index={index}
-                      data-src={image}
-                    >
-                      <img
-                        src={image}
-                        alt={`${cleanTitle} - Image ${index + 1}`}
-                        class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
-                        loading="lazy"
-                      />
-                      <div class="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                        <svg class="w-10 h-10 text-white opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"/>
-                        </svg>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-
-                <!-- Lightbox Modal -->
-                <div id="lightbox-modal" class="fixed inset-0 z-50 hidden bg-black/90 items-center justify-center p-4">
-                  <button
-                    type="button"
-                    id="lightbox-close"
-                    class="absolute top-4 right-4 w-12 h-12 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white transition-colors z-10"
-                    aria-label="Close gallery"
-                  >
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                    </svg>
-                  </button>
-
-                  <button
-                    type="button"
-                    id="lightbox-prev"
-                    class="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white transition-colors"
-                    aria-label="Previous image"
-                  >
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-                    </svg>
-                  </button>
-
-                  <button
-                    type="button"
-                    id="lightbox-next"
-                    class="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white transition-colors"
-                    aria-label="Next image"
-                  >
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                    </svg>
-                  </button>
-
-                  <img
-                    id="lightbox-image"
-                    src=""
-                    alt="Gallery image"
-                    class="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl"
-                  />
-
-                  <div id="lightbox-counter" class="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/80 text-sm font-medium bg-black/30 px-4 py-2 rounded-full">
-                    1 / {event.gallery_images.length}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <!-- 6. Contact Information -->
-            <div class="bg-white rounded-2xl shadow-lg p-8 lg:p-12">
-              <h2 class="text-2xl lg:text-3xl font-bold text-[#0C2044] mb-8 flex items-center gap-4">
-                <span class="w-12 h-12 bg-gradient-to-br from-[#26ACF5] to-[#0B52AC] rounded-xl flex items-center justify-center shadow-lg">
-                  <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/>
-                    <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/>
-                  </svg>
-                </span>
-                <span>Contact Information</span>
-              </h2>
-
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <!-- Email -->
-                <div class="flex items-start gap-4 p-4 bg-[#F8F9FA] rounded-xl">
-                  <div class="w-12 h-12 bg-[#0B52AC] rounded-lg flex items-center justify-center flex-shrink-0">
-                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
-                    </svg>
-                  </div>
-                  <div>
-                    <h4 class="font-semibold text-[#0C2044] mb-1">Email Us</h4>
-                    <a href="mailto:gpsdentaltraining@gaprostho.com" class="text-[#0B52AC] hover:underline">
-                      gpsdentaltraining@gaprostho.com
-                    </a>
-                  </div>
-                </div>
-
-                <!-- Address -->
-                <div class="flex items-start gap-4 p-4 bg-[#F8F9FA] rounded-xl">
-                  <div class="w-12 h-12 bg-[#0B52AC] rounded-lg flex items-center justify-center flex-shrink-0">
-                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
-                    </svg>
-                  </div>
-                  <div>
-                    <h4 class="font-semibold text-[#0C2044] mb-1">Training Center</h4>
-                    <p class="text-gray-600">
-                      6320 Sugarloaf Parkway<br/>
-                      Duluth, GA 30097
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <!-- vCard Download -->
-              <div class="mt-6 pt-6 border-t border-gray-200">
-                <a
-                  href="/contact"
-                  class="inline-flex items-center gap-2 text-[#0B52AC] font-semibold hover:gap-3 transition-all"
-                >
-                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                  </svg>
-                  Download vCard
-                </a>
-              </div>
-            </div>
-
-            <!-- 7. Course Schedule / Agenda (Optional - controlled from backend) -->
-            {scheduleByDay.size > 0 && (
-              <div class="bg-white rounded-2xl shadow-lg p-8 lg:p-12">
-                <h2 class="text-2xl lg:text-3xl font-bold text-[#0C2044] mb-8 flex items-center gap-4">
-                  <span class="w-12 h-12 bg-gradient-to-br from-[#DDC89D] to-[#BFAC87] rounded-xl flex items-center justify-center shadow-lg">
-                    <svg class="w-6 h-6 text-[#0C2044]" fill="currentColor" viewBox="0 0 20 20">
-                      <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/>
-                    </svg>
-                  </span>
-                  <span>Agenda</span>
-                </h2>
-
-                <!-- Day Tabs -->
-                {scheduleByDay.size > 1 && (
-                  <div class="flex gap-2 mb-6 overflow-x-auto pb-2" id="schedule-tabs">
-                    {Array.from(scheduleByDay.keys()).map((day, index) => (
-                      <button
-                        class={`schedule-tab px-6 py-3 rounded-lg font-semibold whitespace-nowrap transition-all ${index === 0 ? 'bg-[#0C2044] text-white shadow-lg' : 'bg-[#F2F2F2] text-[#0C2044] hover:bg-[#DDC89D]/20'}`}
-                        data-day={day}
-                      >
-                        Day {day}
-                        <span class="block text-xs font-normal opacity-75">
-                          {getDayName(day, event.start_date)}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                <!-- Schedule Content -->
-                <div class="space-y-1">
-                  {Array.from(scheduleByDay.entries()).map(([day, topics], dayIndex) => (
-                    <div
-                      class={`schedule-content ${dayIndex > 0 ? 'hidden' : ''}`}
-                      data-day-content={day}
-                    >
-                      {topics.map((topic) => (
-                        <div class={`flex gap-4 p-4 rounded-xl transition-colors hover:bg-[#F8F9FA] ${topic.topic === 'Lunch' || topic.topic.includes('Break') || topic.topic.includes('Coffee') ? 'bg-[#DDC89D]/10' : ''}`}>
-                          <!-- Time -->
-                          <div class="flex-shrink-0 w-36 md:w-44">
-                            <span class="text-sm font-semibold text-[#0B52AC] bg-[#0B52AC]/10 px-3 py-1.5 rounded-full inline-block">
-                              {topic.time}
-                            </span>
-                          </div>
-
-                          <!-- Content -->
-                          <div class="flex-1 min-w-0">
-                            <h4 class="font-semibold text-[#0C2044]">{topic.topic}</h4>
-                            {topic.description && (
-                              <p class="text-gray-600 text-sm mt-1">{topic.description}</p>
-                            )}
-                          </div>
-
-                          <!-- Visual indicator -->
-                          <div class="flex-shrink-0 hidden md:flex items-center gap-2">
-                            {topic.topic.toLowerCase().includes('hands') && (
-                              <span class="text-xs font-medium bg-green-100 text-green-700 px-2 py-1 rounded">Hands-On</span>
-                            )}
-                            {topic.topic.toLowerCase().includes('live') && (
-                              <span class="text-xs font-medium bg-red-100 text-red-700 px-2 py-1 rounded">Live Demo</span>
-                            )}
-                            {topic.topic.toLowerCase().includes('lab') && (
-                              <span class="text-xs font-medium bg-purple-100 text-purple-700 px-2 py-1 rounded">Lab</span>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <!-- 8. Sponsors Section -->
-            <div class="bg-white rounded-2xl shadow-lg p-8 lg:p-12">
-              <h2 class="text-2xl lg:text-3xl font-bold text-[#0C2044] mb-8 flex items-center gap-4">
-                <span class="w-12 h-12 bg-gradient-to-br from-[#0B52AC] to-[#173D84] rounded-xl flex items-center justify-center shadow-lg">
-                  <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
-                    <path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                  </svg>
-                </span>
-                <span>Our Sponsors & Accreditation</span>
-              </h2>
-
-              <div class="flex flex-wrap items-center justify-center gap-8 lg:gap-12">
-                <!-- PACE Logo -->
-                <div class="flex flex-col items-center gap-2">
-                  <div class="w-24 h-24 bg-[#F8F9FA] rounded-xl flex items-center justify-center p-4">
-                    <img src="/pace-logo.png" alt="PACE - Program Approval for Continuing Education" class="max-w-full max-h-full object-contain" />
-                  </div>
-                  <span class="text-xs text-gray-500 text-center">PACE Approved</span>
-                </div>
-
-                <!-- GPS Logo -->
-                <div class="flex flex-col items-center gap-2">
-                  <div class="w-24 h-24 bg-[#F8F9FA] rounded-xl flex items-center justify-center p-4">
-                    <img src="/logo.svg" alt="GPS Dental Training" class="max-w-full max-h-full object-contain" />
-                  </div>
-                  <span class="text-xs text-gray-500 text-center">GPS Dental Training</span>
-                </div>
-
-                <!-- AGD Logo placeholder -->
-                <div class="flex flex-col items-center gap-2">
-                  <div class="w-24 h-24 bg-[#F8F9FA] rounded-xl flex items-center justify-center p-4">
-                    <div class="text-center">
-                      <span class="text-lg font-bold text-[#0C2044]">AGD</span>
-                      <p class="text-[8px] text-gray-500 leading-tight mt-1">Academy of<br/>General Dentistry</p>
-                    </div>
-                  </div>
-                  <span class="text-xs text-gray-500 text-center">AGD Member</span>
-                </div>
-              </div>
-
-              <p class="text-center text-gray-500 text-sm mt-8">
-                GPS Dental Training is an AGD PACE-approved provider. PACE approval does not imply acceptance by a state or provincial board of dentistry.
-              </p>
-            </div>
-          </div>
-
-          <!-- Right Column - Sticky Sidebar -->
-          <div class="lg:col-span-1">
-            <div class="sticky top-24 space-y-6">
-
-              <!-- Ticket Selector or Waitlist -->
-              {availability.is_available ? (
-                <TicketSelector
-                  eventId={event.id}
-                  eventTitle={event.title}
-                  client:load
-                />
-              ) : (
-                <WaitlistForm
-                  eventId={event.id}
-                  eventTitle={event.title}
-                  client:load
-                />
-              )}
-
-              <!-- Quick Info Card -->
-              <div class="bg-white rounded-2xl shadow-lg p-6">
-                <h3 class="font-semibold text-[#0C2044] mb-4 uppercase text-sm tracking-wide">Quick Info</h3>
-
-                <div class="space-y-4">
-                  <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 bg-[#0B52AC]/10 rounded-lg flex items-center justify-center">
-                      <svg class="w-5 h-5 text-[#0B52AC]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                      </svg>
-                    </div>
-                    <div>
-                      <p class="text-xs text-gray-500 uppercase">Date</p>
-                      <p class="font-semibold text-[#0C2044]">{dateDisplay}</p>
-                    </div>
-                  </div>
-
-                  <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 bg-[#DDC89D]/20 rounded-lg flex items-center justify-center">
-                      <svg class="w-5 h-5 text-[#DDC89D]" fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3z"/>
-                      </svg>
-                    </div>
-                    <div>
-                      <p class="text-xs text-gray-500 uppercase">CE Credits</p>
-                      <p class="font-semibold text-[#0C2044]">{event.ce_credits} Credits</p>
-                    </div>
-                  </div>
-
-                  {event.venue && (
-                    <div class="flex items-center gap-3">
-                      <div class="w-10 h-10 bg-[#0B52AC]/10 rounded-lg flex items-center justify-center">
-                        <svg class="w-5 h-5 text-[#0B52AC]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
-                        </svg>
-                      </div>
-                      <div>
-                        <p class="text-xs text-gray-500 uppercase">Location</p>
-                        <p class="font-semibold text-[#0C2044]">{event.venue}</p>
-                      </div>
-                    </div>
-                  )}
-
-                  {event.capacity && (
-                    <div class="flex items-center gap-3">
-                      <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                        <svg class="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                          <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/>
-                        </svg>
-                      </div>
-                      <div>
-                        <p class="text-xs text-gray-500 uppercase">Class Size</p>
-                        <p class="font-semibold text-[#0C2044]">Limited to {event.capacity}</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <!-- Need Help? -->
-              <div class="bg-gradient-to-br from-[#0C2044] to-[#173D84] rounded-2xl p-6 text-white">
-                <h3 class="font-semibold text-white mb-2">Questions?</h3>
-                <p class="text-white/80 text-sm mb-4">
-                  Our team is here to help you with registration, logistics, or course content.
-                </p>
-                <a
-                  href="mailto:gpsdentaltraining@gaprostho.com"
-                  class="inline-flex items-center gap-2 text-[#DDC89D] font-semibold hover:gap-3 transition-all"
-                >
-                  Contact Us
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/>
-                  </svg>
-                </a>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </main>
-
-    <!-- Footer -->
-    <Footer client:load />
-
-    <!-- Schedule Tab Script -->
-    <script>
-      document.addEventListener('DOMContentLoaded', () => {
-        const tabs = document.querySelectorAll('.schedule-tab');
-        const contents = document.querySelectorAll('.schedule-content');
-
-        tabs.forEach(tab => {
-          tab.addEventListener('click', () => {
-            const day = tab.getAttribute('data-day');
-
-            // Update tabs
-            tabs.forEach(t => {
-              t.classList.remove('bg-[#0C2044]', 'text-white', 'shadow-lg');
-              t.classList.add('bg-[#F2F2F2]', 'text-[#0C2044]');
-            });
-            tab.classList.remove('bg-[#F2F2F2]', 'text-[#0C2044]');
-            tab.classList.add('bg-[#0C2044]', 'text-white', 'shadow-lg');
-
-            // Update content
-            contents.forEach(c => c.classList.add('hidden'));
-            document.querySelector(`[data-day-content="${day}"]`)?.classList.remove('hidden');
-          });
-        });
-      });
-    </script>
-
-    <!-- Gallery Lightbox Script -->
-    <script>
-      document.addEventListener('DOMContentLoaded', () => {
-        const galleryItems = document.querySelectorAll('.gallery-item');
-        const lightbox = document.getElementById('lightbox-modal');
-        const lightboxImage = document.getElementById('lightbox-image') as HTMLImageElement | null;
-        const lightboxClose = document.getElementById('lightbox-close');
-        const lightboxPrev = document.getElementById('lightbox-prev');
-        const lightboxNext = document.getElementById('lightbox-next');
-        const lightboxCounter = document.getElementById('lightbox-counter');
-
-        if (!galleryItems.length || !lightbox) return;
-
-        let currentIndex = 0;
-        const images: string[] = [];
-
-        // Collect all image URLs
-        galleryItems.forEach((item) => {
-          const src = item.getAttribute('data-src');
-          if (src) images.push(src);
-        });
-
-        function showImage(idx: number) {
-          let newIndex = idx;
-          if (newIndex < 0) newIndex = images.length - 1;
-          if (newIndex >= images.length) newIndex = 0;
-          currentIndex = newIndex;
-          if (lightboxImage) lightboxImage.src = images[currentIndex];
-          if (lightboxCounter) lightboxCounter.textContent = `${currentIndex + 1} / ${images.length}`;
-        }
-
-        function openLightbox(idx: number) {
-          currentIndex = idx;
-          showImage(currentIndex);
-          if (lightbox) {
-            lightbox.classList.remove('hidden');
-            lightbox.classList.add('flex');
-          }
-          document.body.style.overflow = 'hidden';
-        }
-
-        function closeLightbox() {
-          if (lightbox) {
-            lightbox.classList.add('hidden');
-            lightbox.classList.remove('flex');
-          }
-          document.body.style.overflow = '';
-        }
-
-        // Click on gallery item
-        galleryItems.forEach((item) => {
-          item.addEventListener('click', () => {
-            const idx = parseInt(item.getAttribute('data-index') || '0');
-            openLightbox(idx);
-          });
-        });
-
-        // Close button
-        lightboxClose?.addEventListener('click', closeLightbox);
-
-        // Previous/Next buttons
-        lightboxPrev?.addEventListener('click', () => showImage(currentIndex - 1));
-        lightboxNext?.addEventListener('click', () => showImage(currentIndex + 1));
-
-        // Keyboard navigation
-        document.addEventListener('keydown', (e) => {
-          if (!lightbox || !lightbox.classList.contains('flex')) return;
-
-          if (e.key === 'Escape') closeLightbox();
-          if (e.key === 'ArrowLeft') showImage(currentIndex - 1);
-          if (e.key === 'ArrowRight') showImage(currentIndex + 1);
-        });
-
-        // Click outside to close
-        lightbox?.addEventListener('click', (e) => {
-          if (e.target === lightbox) closeLightbox();
-        });
-      });
-    </script>
-  </body>
-</html>
+{layoutTemplate === 'classic' ? (
+  <ClassicCourseDetail {...templateProps} />
+) : (
+  <ModernCourseDetail {...templateProps} />
+)}

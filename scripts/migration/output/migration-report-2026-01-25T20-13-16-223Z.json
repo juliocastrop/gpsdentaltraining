@@ -1,0 +1,21 @@
+{
+  "timestamp": "2026-01-25T20:13:16.223Z",
+  "dryRun": false,
+  "results": [
+    {
+      "entity": "users",
+      "total": 26,
+      "migrated": 26,
+      "skipped": 0,
+      "failed": 0,
+      "errors": [],
+      "startTime": "2026-01-25T20:12:56.230Z",
+      "endTime": "2026-01-25T20:13:16.222Z"
+    }
+  ],
+  "summary": {
+    "totalMigrated": 26,
+    "totalSkipped": 0,
+    "totalFailed": 0
+  }
+}

@@ -1,0 +1,475 @@
+---
+/**
+ * Modern Seminar Detail Template
+ * The current default design for monthly seminar detail pages.
+ * Full-width hero, card-based content sections, sticky sidebar.
+ */
+import Navbar from '../../layout/Navbar';
+import Footer from '../../layout/Footer';
+
+interface Props {
+  seminar: any;
+  moderators: any[];
+  siteSettings: {
+    logo_url: string;
+    logo_white_url: string;
+    favicon_url: string;
+    company_name: string;
+  };
+  cleanTitle: string;
+  agendaItems: any[];
+  benefits: string[];
+  certificateDates: string[];
+  url: URL;
+}
+
+const {
+  seminar,
+  moderators,
+  siteSettings,
+  cleanTitle,
+  agendaItems,
+  benefits,
+  certificateDates,
+  url,
+} = Astro.props;
+
+function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+---
+
+<!-- Navigation -->
+<Navbar
+  logo={siteSettings.logo_url}
+  logoWhite={siteSettings.logo_white_url}
+  transparent={true}
+  client:load
+/>
+
+<!-- Hero Section -->
+<section class="relative min-h-[60vh] lg:min-h-[70vh] flex items-end">
+  <div class="absolute inset-0 z-0">
+    {seminar.hero_image_url ? (
+      <img src={seminar.hero_image_url} alt={cleanTitle} class="w-full h-full object-cover" />
+    ) : (
+      <div class="w-full h-full bg-gradient-to-br from-[#173D84] to-[#0C2044]"></div>
+    )}
+    <div class="absolute inset-0 bg-gradient-to-t from-[#0C2044] via-[#0C2044]/70 to-transparent"></div>
+  </div>
+
+  <div class="relative z-10 w-full pb-12 pt-32">
+    <div class="container mx-auto px-4 lg:px-8 max-w-7xl">
+      <div class="max-w-4xl">
+        <!-- Frequency Badge -->
+        <div class="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm text-white px-4 py-2 rounded-full font-medium text-sm mb-4">
+          <svg class="w-5 h-5 text-[#DDC89D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+          <span>Once a Month</span>
+        </div>
+
+        <!-- CE Credits Badge -->
+        <div class="inline-flex items-center gap-2 bg-[#DDC89D] text-[#0C2044] px-4 py-2 rounded-full font-bold text-sm mb-6 ml-2 shadow-lg">
+          <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0zM6 18a1 1 0 001-1v-2.065a8.935 8.935 0 00-2-.712V17a1 1 0 001 1z"/>
+          </svg>
+          {seminar.total_credits} CE Credits
+        </div>
+
+        <!-- Title -->
+        <h1 class="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white mb-6 leading-tight font-heading">
+          {cleanTitle}
+        </h1>
+
+        {seminar.subtitle && (
+          <p class="text-xl md:text-2xl text-white/80 mb-6 max-w-3xl">{seminar.subtitle}</p>
+        )}
+
+        <!-- Meta Info -->
+        <div class="flex flex-wrap items-center gap-6 text-white/90 text-lg">
+          <div class="flex items-center gap-2">
+            <svg class="w-6 h-6 text-[#DDC89D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+            </svg>
+            <span class="font-medium">{seminar.total_sessions} Sessions</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <svg class="w-6 h-6 text-[#DDC89D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span class="font-medium">{seminar.session_duration || '2 hours'} per session</span>
+          </div>
+          {seminar.venue && (
+            <div class="flex items-center gap-2">
+              <svg class="w-6 h-6 text-[#DDC89D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <span class="font-medium">{seminar.venue}</span>
+            </div>
+          )}
+        </div>
+
+        <!-- Share Buttons -->
+        <div class="flex items-center gap-3 mt-8">
+          <span class="text-white/60 text-sm">Share:</span>
+          <a href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url.href)}`} target="_blank" rel="noopener noreferrer" class="w-10 h-10 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white transition-colors" aria-label="Share on Facebook">
+            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+          </a>
+          <a href={`https://twitter.com/intent/tweet?url=${encodeURIComponent(url.href)}&text=${encodeURIComponent(cleanTitle)}`} target="_blank" rel="noopener noreferrer" class="w-10 h-10 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white transition-colors" aria-label="Share on X">
+            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+          </a>
+          <a href={`https://www.linkedin.com/shareArticle?mini=true&url=${encodeURIComponent(url.href)}&title=${encodeURIComponent(cleanTitle)}`} target="_blank" rel="noopener noreferrer" class="w-10 h-10 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white transition-colors" aria-label="Share on LinkedIn">
+            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+          </a>
+          <a href={`https://wa.me/?text=${encodeURIComponent(`${cleanTitle}: ${url.href}`)}`} target="_blank" rel="noopener noreferrer" class="w-10 h-10 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white transition-colors" aria-label="Share on WhatsApp">
+            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+          </a>
+          <a href={`mailto:?subject=${encodeURIComponent(cleanTitle)}&body=${encodeURIComponent(`Check out this program: ${url.href}`)}`} class="w-10 h-10 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white transition-colors" aria-label="Share via Email">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Main Content -->
+<main class="flex-1 bg-[#F8F9FA]">
+  <div class="container mx-auto px-4 lg:px-8 max-w-7xl py-12 lg:py-16">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-12">
+
+      <!-- Left Column -->
+      <div class="lg:col-span-2 space-y-10 lg:space-y-12">
+
+        <!-- 1. Program Description -->
+        <div class="bg-white rounded-2xl shadow-lg p-8 lg:p-12">
+          <h2 class="text-2xl lg:text-3xl font-bold text-[#0C2044] mb-8 flex items-center gap-4">
+            <span class="w-12 h-12 bg-gradient-to-br from-[#DDC89D] to-[#BFAC87] rounded-xl flex items-center justify-center shadow-lg">
+              <svg class="w-6 h-6 text-[#0C2044]" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+              </svg>
+            </span>
+            <span>About This Program</span>
+          </h2>
+          {seminar.program_description ? (
+            <div class="prose prose-lg max-w-none text-[#293647]" set:html={seminar.program_description} />
+          ) : (
+            <div class="text-lg text-gray-600 leading-relaxed space-y-4">
+              <p>Join our {seminar.total_sessions}-session cycle dedicated to Literature Review, Case Discussions, and Treatment Planning Seminars.</p>
+              <p>Sessions are held monthly at our {seminar.venue || 'Duluth, GA'} facility, each lasting approximately {seminar.session_duration || '2 hours'}. Upon completing all sessions, you'll earn {seminar.total_credits} CE credits.</p>
+            </div>
+          )}
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8">
+            {benefits.map((benefit: string) => (
+              <div class="flex items-start gap-3 bg-[#F8F9FA] p-4 rounded-xl hover:bg-[#DDC89D]/10 transition-colors">
+                <span class="flex-shrink-0 w-6 h-6 bg-[#DDC89D] rounded-full flex items-center justify-center mt-0.5">
+                  <svg class="w-4 h-4 text-[#0C2044]" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                  </svg>
+                </span>
+                <span class="text-gray-700">{benefit}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <!-- 2. Moderators Section -->
+        {moderators.length > 0 && (
+          <div class="bg-white rounded-2xl shadow-lg p-8 lg:p-12">
+            <h2 class="text-2xl lg:text-3xl font-bold text-[#0C2044] mb-8 flex items-center gap-4">
+              <span class="w-12 h-12 bg-gradient-to-br from-[#0B52AC] to-[#173D84] rounded-xl flex items-center justify-center shadow-lg">
+                <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/>
+                </svg>
+              </span>
+              <span>{moderators.length > 1 ? 'Program Moderators' : 'Program Moderator'}</span>
+            </h2>
+            <div class="space-y-8">
+              {moderators.map((moderator: any) => (
+                <div class="flex flex-col md:flex-row gap-6 p-6 bg-[#F8F9FA] rounded-xl hover:shadow-md transition-shadow">
+                  <div class="flex-shrink-0">
+                    {moderator.photo_url ? (
+                      <img src={moderator.photo_url} alt={moderator.name} class="w-32 h-32 md:w-40 md:h-40 rounded-xl object-cover shadow-lg" />
+                    ) : (
+                      <div class="w-32 h-32 md:w-40 md:h-40 rounded-xl bg-gradient-to-br from-[#173D84] to-[#0C2044] flex items-center justify-center">
+                        <span class="text-4xl font-bold text-white">{moderator.name.split(' ').map((n: string) => n[0]).join('').substring(0, 2)}</span>
+                      </div>
+                    )}
+                  </div>
+                  <div class="flex-1">
+                    <div class="text-xs font-semibold text-[#DDC89D] uppercase tracking-wider mb-1">{moderator.role || 'Moderator'}</div>
+                    <h3 class="text-xl font-bold text-[#0C2044] mb-1">{moderator.name}</h3>
+                    {moderator.title && <p class="text-[#DDC89D] font-semibold mb-3">{moderator.title}</p>}
+                    {moderator.bio && <p class="text-gray-600 leading-relaxed">{moderator.bio}</p>}
+                    {moderator.social_links && Object.keys(moderator.social_links).length > 0 && (
+                      <div class="flex gap-3 mt-4">
+                        {moderator.social_links.linkedin && (
+                          <a href={moderator.social_links.linkedin} target="_blank" rel="noopener noreferrer" class="text-[#0B52AC] hover:text-[#0C2044] transition-colors">
+                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                          </a>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <!-- 3. Session Agenda -->
+        <div class="bg-gradient-to-br from-[#0C2044] to-[#173D84] rounded-2xl shadow-xl p-8 lg:p-12 text-white relative overflow-hidden">
+          <div class="absolute top-0 right-0 w-64 h-64 bg-[#DDC89D] rounded-full opacity-5 translate-x-1/2 -translate-y-1/2"></div>
+          <h2 class="text-2xl lg:text-3xl font-bold text-white mb-8 flex items-center gap-4 relative z-10">
+            <span class="w-12 h-12 bg-gradient-to-br from-[#DDC89D] to-[#BFAC87] rounded-xl flex items-center justify-center shadow-lg">
+              <svg class="w-6 h-6 text-[#0C2044]" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/>
+              </svg>
+            </span>
+            <span>Session Agenda</span>
+          </h2>
+          <p class="text-white/70 mb-8 text-lg relative z-10">Each monthly session follows this structure:</p>
+          <div class="space-y-6 relative z-10">
+            {agendaItems.map((item: any, index: number) => (
+              <div class="flex items-start gap-4 bg-white/5 rounded-xl p-5 hover:bg-white/10 transition-colors">
+                <div class="flex-shrink-0 w-12 h-12 bg-[#DDC89D] text-[#0C2044] rounded-xl flex items-center justify-center font-bold text-lg shadow-md">
+                  {index + 1}
+                </div>
+                <div class="flex-1">
+                  <div class="text-[#DDC89D] font-medium text-sm mb-1">{item.time}</div>
+                  <h3 class="text-xl font-semibold mb-1">{item.title}</h3>
+                  {item.description && <p class="text-white/70">{item.description}</p>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <!-- 4. Membership Policy -->
+        <div class="bg-white rounded-2xl shadow-lg p-8 lg:p-12">
+          <h2 class="text-2xl lg:text-3xl font-bold text-[#0C2044] mb-8 flex items-center gap-4">
+            <span class="w-12 h-12 bg-gradient-to-br from-[#26ACF5] to-[#0B52AC] rounded-xl flex items-center justify-center shadow-lg">
+              <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 2a1 1 0 00-1 1v1a1 1 0 002 0V3a1 1 0 00-1-1zM4 4h3a3 3 0 006 0h3a2 2 0 012 2v9a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2zm2.5 7a1.5 1.5 0 100-3 1.5 1.5 0 000 3zm2.45 4a2.5 2.5 0 10-4.9 0h4.9zM12 9a1 1 0 100 2h3a1 1 0 100-2h-3zm-1 4a1 1 0 011-1h2a1 1 0 110 2h-2a1 1 0 01-1-1z" clip-rule="evenodd"/>
+              </svg>
+            </span>
+            <span>Membership Policy</span>
+          </h2>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="p-5 bg-[#F8F9FA] rounded-xl border-l-4 border-[#0B52AC]">
+              <div class="flex items-center gap-3 mb-3">
+                <svg class="w-6 h-6 text-[#0B52AC]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <h3 class="font-bold text-[#0C2044]">Attendance</h3>
+              </div>
+              <p class="text-gray-600 text-sm">{seminar.membership_policy || `Attendance is mandatory to obtain ${seminar.total_credits} CE credits. Credits are prorated at ${seminar.credits_per_session} CE per session attended.`}</p>
+            </div>
+            <div class="p-5 bg-[#F8F9FA] rounded-xl border-l-4 border-[#DDC89D]">
+              <div class="flex items-center gap-3 mb-3">
+                <svg class="w-6 h-6 text-[#DDC89D]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                <h3 class="font-bold text-[#0C2044]">Certificates</h3>
+              </div>
+              <p class="text-gray-600 text-sm">Certificates are distributed twice yearly on {certificateDates.join(' and ')} for all sessions completed during that period.</p>
+            </div>
+            <div class="p-5 bg-[#F8F9FA] rounded-xl border-l-4 border-red-400">
+              <div class="flex items-center gap-3 mb-3">
+                <svg class="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                <h3 class="font-bold text-[#0C2044]">Refund Policy</h3>
+              </div>
+              <p class="text-gray-600 text-sm">{seminar.refund_policy || 'Tuition is not refundable or transferable. Please consider your schedule carefully before enrolling.'}</p>
+            </div>
+            <div class="p-5 bg-[#F8F9FA] rounded-xl border-l-4 border-blue-400">
+              <div class="flex items-center gap-3 mb-3">
+                <svg class="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                <h3 class="font-bold text-[#0C2044]">Makeup Sessions</h3>
+              </div>
+              <p class="text-gray-600 text-sm">{seminar.makeup_policy || 'Only ONE makeup session is allowed per calendar year. Contact us to schedule your makeup session.'}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 5. Contact Information -->
+        <div class="bg-white rounded-2xl shadow-lg p-8 lg:p-12">
+          <h2 class="text-2xl lg:text-3xl font-bold text-[#0C2044] mb-8 flex items-center gap-4">
+            <span class="w-12 h-12 bg-gradient-to-br from-[#26ACF5] to-[#0B52AC] rounded-xl flex items-center justify-center shadow-lg">
+              <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/>
+                <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/>
+              </svg>
+            </span>
+            <span>Contact Information</span>
+          </h2>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="flex items-start gap-4 p-4 bg-[#F8F9FA] rounded-xl">
+              <div class="w-12 h-12 bg-[#0B52AC] rounded-lg flex items-center justify-center flex-shrink-0">
+                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+              </div>
+              <div>
+                <h4 class="font-semibold text-[#0C2044] mb-1">Email Us</h4>
+                <a href={`mailto:${seminar.contact_email || 'gpsdentaltraining@gaprostho.com'}`} class="text-[#0B52AC] hover:underline">{seminar.contact_email || 'gpsdentaltraining@gaprostho.com'}</a>
+              </div>
+            </div>
+            <div class="flex items-start gap-4 p-4 bg-[#F8F9FA] rounded-xl">
+              <div class="w-12 h-12 bg-[#0B52AC] rounded-lg flex items-center justify-center flex-shrink-0">
+                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+              </div>
+              <div>
+                <h4 class="font-semibold text-[#0C2044] mb-1">Training Center</h4>
+                <p class="text-gray-600">{seminar.address || '6320 Sugarloaf Parkway'}<br/>{!seminar.address && 'Duluth, GA 30097'}</p>
+              </div>
+            </div>
+          </div>
+          <div class="mt-6 pt-6 border-t border-gray-200">
+            <a href="/contact" class="inline-flex items-center gap-2 text-[#0B52AC] font-semibold hover:gap-3 transition-all">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+              Download vCard
+            </a>
+          </div>
+        </div>
+
+        <!-- 6. Accreditation -->
+        <div class="bg-white rounded-2xl shadow-lg p-8 lg:p-12">
+          <h2 class="text-2xl lg:text-3xl font-bold text-[#0C2044] mb-8 flex items-center gap-4">
+            <span class="w-12 h-12 bg-gradient-to-br from-[#0B52AC] to-[#173D84] rounded-xl flex items-center justify-center shadow-lg">
+              <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+              </svg>
+            </span>
+            <span>Accreditation</span>
+          </h2>
+          <div class="flex flex-wrap items-center justify-center gap-8 lg:gap-12">
+            <div class="flex flex-col items-center gap-2">
+              <div class="w-24 h-24 bg-[#F8F9FA] rounded-xl flex items-center justify-center p-4">
+                {seminar.accreditation_logo_url ? (
+                  <img src={seminar.accreditation_logo_url} alt="PACE Accreditation" class="max-w-full max-h-full object-contain" />
+                ) : (
+                  <img src="/pace-logo.png" alt="PACE - Program Approval for Continuing Education" class="max-w-full max-h-full object-contain" />
+                )}
+              </div>
+              <span class="text-xs text-gray-500 text-center">PACE Approved</span>
+            </div>
+            <div class="flex flex-col items-center gap-2">
+              <div class="w-24 h-24 bg-[#F8F9FA] rounded-xl flex items-center justify-center p-4">
+                <img src="/logo.svg" alt="GPS Dental Training" class="max-w-full max-h-full object-contain" />
+              </div>
+              <span class="text-xs text-gray-500 text-center">GPS Dental Training</span>
+            </div>
+            <div class="flex flex-col items-center gap-2">
+              <div class="w-24 h-24 bg-[#F8F9FA] rounded-xl flex items-center justify-center p-4">
+                <div class="text-center">
+                  <span class="text-lg font-bold text-[#0C2044]">AGD</span>
+                  <p class="text-[8px] text-gray-500 leading-tight mt-1">Academy of<br/>General Dentistry</p>
+                </div>
+              </div>
+              <span class="text-xs text-gray-500 text-center">AGD Member</span>
+            </div>
+          </div>
+          <p class="text-center text-gray-500 text-sm mt-8">{seminar.accreditation_text || 'GPS Dental Training is an AGD PACE-approved provider. PACE approval does not imply acceptance by a state or provincial board of dentistry.'}</p>
+        </div>
+      </div>
+
+      <!-- Right Column - Sticky Sidebar -->
+      <div class="lg:col-span-1">
+        <div class="sticky top-24 space-y-6">
+
+          <!-- Registration Card -->
+          <div class="bg-white rounded-2xl shadow-lg overflow-hidden">
+            <div class="bg-gradient-to-br from-[#0C2044] to-[#173D84] p-6 text-white text-center">
+              <div class="text-4xl font-extrabold mb-2">{formatCurrency(seminar.price)}</div>
+              <div class="text-white/70 text-sm">One-time enrollment</div>
+            </div>
+            <div class="p-6">
+              <ul class="space-y-3 mb-6">
+                <li class="flex items-center gap-3 text-sm">
+                  <svg class="w-5 h-5 text-green-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                  <span>{seminar.total_sessions} monthly sessions</span>
+                </li>
+                <li class="flex items-center gap-3 text-sm">
+                  <svg class="w-5 h-5 text-green-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                  <span>{seminar.total_credits} CE credits total</span>
+                </li>
+                <li class="flex items-center gap-3 text-sm">
+                  <svg class="w-5 h-5 text-green-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                  <span>PACE-approved provider</span>
+                </li>
+                <li class="flex items-center gap-3 text-sm">
+                  <svg class="w-5 h-5 text-green-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                  <span>Certificate upon completion</span>
+                </li>
+              </ul>
+              <a href={`/checkout?seminar=${seminar.id}`} class="w-full bg-[#0B52AC] hover:bg-[#0C2044] text-white font-bold py-4 px-6 rounded-xl transition-all duration-300 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                Add to Cart
+              </a>
+              <p class="text-xs text-red-500 mt-4 text-center font-medium">Tuition is not refundable or transferable</p>
+            </div>
+          </div>
+
+          <!-- Quick Info Card -->
+          <div class="bg-white rounded-2xl shadow-lg p-6">
+            <h3 class="font-semibold text-[#0C2044] mb-4 uppercase text-sm tracking-wide">Quick Info</h3>
+            <div class="space-y-4">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-[#0B52AC]/10 rounded-lg flex items-center justify-center">
+                  <svg class="w-5 h-5 text-[#0B52AC]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+                </div>
+                <div>
+                  <p class="text-xs text-gray-500 uppercase">Sessions</p>
+                  <p class="font-semibold text-[#0C2044]">{seminar.total_sessions} Monthly</p>
+                </div>
+              </div>
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-[#DDC89D]/20 rounded-lg flex items-center justify-center">
+                  <svg class="w-5 h-5 text-[#DDC89D]" fill="currentColor" viewBox="0 0 20 20"><path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3z"/></svg>
+                </div>
+                <div>
+                  <p class="text-xs text-gray-500 uppercase">CE Credits</p>
+                  <p class="font-semibold text-[#0C2044]">{seminar.total_credits} Total ({seminar.credits_per_session}/session)</p>
+                </div>
+              </div>
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-[#0B52AC]/10 rounded-lg flex items-center justify-center">
+                  <svg class="w-5 h-5 text-[#0B52AC]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </div>
+                <div>
+                  <p class="text-xs text-gray-500 uppercase">Duration</p>
+                  <p class="font-semibold text-[#0C2044]">{seminar.session_duration || '2 hours'} per session</p>
+                </div>
+              </div>
+              {seminar.venue && (
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 bg-[#0B52AC]/10 rounded-lg flex items-center justify-center">
+                    <svg class="w-5 h-5 text-[#0B52AC]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                  </div>
+                  <div>
+                    <p class="text-xs text-gray-500 uppercase">Location</p>
+                    <p class="font-semibold text-[#0C2044]">{seminar.venue}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <!-- Need Help? -->
+          <div class="bg-gradient-to-br from-[#0C2044] to-[#173D84] rounded-2xl p-6 text-white">
+            <h3 class="font-semibold text-white mb-2">Questions?</h3>
+            <p class="text-white/80 text-sm mb-4">Our team is here to help you with registration or program details.</p>
+            <a href={`mailto:${seminar.contact_email || 'gpsdentaltraining@gaprostho.com'}`} class="inline-flex items-center gap-2 text-[#DDC89D] font-semibold hover:gap-3 transition-all">
+              Contact Us
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- Footer -->
+<Footer client:load />

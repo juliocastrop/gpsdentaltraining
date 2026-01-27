@@ -1,0 +1,41 @@
+{
+  "timestamp": "2026-01-25T20:13:33.037Z",
+  "dryRun": false,
+  "results": [
+    {
+      "entity": "speakers",
+      "total": 1,
+      "migrated": 1,
+      "skipped": 0,
+      "failed": 0,
+      "errors": [],
+      "startTime": "2026-01-25T20:13:29.556Z",
+      "endTime": "2026-01-25T20:13:33.036Z"
+    },
+    {
+      "entity": "events",
+      "total": 6,
+      "migrated": 5,
+      "skipped": 0,
+      "failed": 1,
+      "errors": [],
+      "startTime": "2026-01-25T20:13:29.556Z",
+      "endTime": "2026-01-25T20:13:33.036Z"
+    },
+    {
+      "entity": "ticket_types",
+      "total": 7,
+      "migrated": 5,
+      "skipped": 2,
+      "failed": 0,
+      "errors": [],
+      "startTime": "2026-01-25T20:13:29.556Z",
+      "endTime": "2026-01-25T20:13:33.036Z"
+    }
+  ],
+  "summary": {
+    "totalMigrated": 11,
+    "totalSkipped": 2,
+    "totalFailed": 1
+  }
+}

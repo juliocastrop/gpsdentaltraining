@@ -1,4 +1,4 @@
-import { resend, EMAIL_FROM, EMAIL_REPLY_TO, ADMIN_EMAILS } from './client';
+import { getResend, EMAIL_FROM, EMAIL_REPLY_TO, ADMIN_EMAILS } from './client';
 import {
   generateTicketConfirmationEmail,
   generateTicketConfirmationText,
@@ -38,7 +38,7 @@ export async function sendTicketConfirmationEmail(
     const html = generateTicketConfirmationEmail(data);
     const text = generateTicketConfirmationText(data);
 
-    const { data: result, error } = await resend.emails.send({
+    const { data: result, error } = await getResend().emails.send({
       from: EMAIL_FROM,
       to: [to],
       replyTo: EMAIL_REPLY_TO,
@@ -80,7 +80,7 @@ export async function sendWaitlistNotificationEmail(
     const html = generateWaitlistNotificationEmail(data);
     const text = generateWaitlistNotificationText(data);
 
-    const { data: result, error } = await resend.emails.send({
+    const { data: result, error } = await getResend().emails.send({
       from: EMAIL_FROM,
       to: [to],
       replyTo: EMAIL_REPLY_TO,
@@ -146,7 +146,7 @@ export async function sendWaitlistConfirmationEmail(
 </html>
     `;
 
-    const { data: result, error } = await resend.emails.send({
+    const { data: result, error } = await getResend().emails.send({
       from: EMAIL_FROM,
       to: [to],
       replyTo: EMAIL_REPLY_TO,
@@ -155,11 +155,13 @@ export async function sendWaitlistConfirmationEmail(
     });
 
     if (error) {
+      console.error('Resend API error (waitlist confirmation):', error);
       return { success: false, error: error.message };
     }
 
     return { success: true, messageId: result?.id };
   } catch (error) {
+    console.error('Exception sending waitlist confirmation:', error);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
@@ -315,7 +317,7 @@ export async function sendCertificateEmail(
 </html>
     `;
 
-    const { data: result, error } = await resend.emails.send({
+    const { data: result, error } = await getResend().emails.send({
       from: EMAIL_FROM,
       to: [to],
       replyTo: EMAIL_REPLY_TO,
@@ -346,7 +348,7 @@ export async function sendAdminNotification(
   content: string
 ): Promise<SendEmailResult> {
   try {
-    const { data: result, error } = await resend.emails.send({
+    const { data: result, error } = await getResend().emails.send({
       from: EMAIL_FROM,
       to: ADMIN_EMAILS,
       replyTo: EMAIL_REPLY_TO,
@@ -399,7 +401,7 @@ export async function sendSeminarRegistrationEmail(
     const html = generateSeminarRegistrationEmail(data);
     const text = generateSeminarRegistrationText(data);
 
-    const { data: result, error } = await resend.emails.send({
+    const { data: result, error } = await getResend().emails.send({
       from: EMAIL_FROM,
       to: [to],
       replyTo: EMAIL_REPLY_TO,
@@ -623,7 +625,7 @@ GPS Dental Training
 Duluth, GA 30096
     `.trim();
 
-    const { data: result, error } = await resend.emails.send({
+    const { data: result, error } = await getResend().emails.send({
       from: EMAIL_FROM,
       to: [to],
       replyTo: EMAIL_REPLY_TO,

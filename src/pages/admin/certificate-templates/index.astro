@@ -5,6 +5,8 @@
  * 100% administrable - all text, colors, fonts, and images are configurable
  */
 import '../../../styles/global.css';
+import { getSiteSettings } from '../../../lib/data/site-settings-loader';
+const siteSettings = await getSiteSettings();
 import Navbar from '../../../components/layout/Navbar';
 import { getCertificateTemplates, getCertificateTemplatesByType } from '../../../lib/supabase/queries';
 import type { CertificateTemplate } from '../../../types/database';
@@ -53,7 +55,7 @@ function formatDate(dateStr: string): string {
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="robots" content="noindex, nofollow" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" href={siteSettings.favicon_url} />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -61,7 +63,7 @@ function formatDate(dateStr: string): string {
   </head>
 
   <body class="min-h-screen flex flex-col bg-gray-100">
-    <Navbar logo="/logo.svg" transparent={false} client:load />
+    <Navbar logo={siteSettings.logo_url} transparent={false} client:load />
 
     <!-- Spacer for fixed navbar -->
     <div class="h-20"></div>

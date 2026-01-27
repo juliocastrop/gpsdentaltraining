@@ -1,0 +1,90 @@
+---
+/**
+ * Admin Email Settings - GPS Dental Training
+ * Configure email templates, branding, and test email functionality
+ */
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import EmailSettings from '../../../components/admin/EmailSettings';
+import { supabaseAdmin } from '../../../lib/supabase/client';
+
+// Check if Clerk is configured
+const clerkConfigured = !!import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY;
+
+// Get user from Clerk if available
+let userId: string | null = null;
+let isAdmin = false;
+let userName = 'Admin';
+let userEmail = 'admin@gpsdentaltraining.com';
+
+try {
+  if (clerkConfigured && Astro.locals.auth) {
+    const auth = Astro.locals.auth();
+    userId = auth?.userId || null;
+
+    if (userId) {
+      const { data: userData } = await supabaseAdmin
+        .from('users')
+        .select('role, first_name, last_name, email')
+        .eq('clerk_id', userId)
+        .single();
+
+      isAdmin = userData?.role === 'admin';
+      if (userData?.first_name) {
+        userName = `${userData.first_name} ${userData.last_name || ''}`.trim();
+      }
+      if (userData?.email) {
+        userEmail = userData.email;
+      }
+    }
+  }
+} catch {
+  isAdmin = true;
+}
+
+if (clerkConfigured && (!userId || !isAdmin)) {
+  return Astro.redirect('/sign-in?redirect_url=/admin/settings/email');
+}
+
+// Get current email settings from database
+const { data: settingsData } = await supabaseAdmin
+  .from('site_settings')
+  .select('*')
+  .eq('key', 'email_settings')
+  .single();
+
+const currentSettings = settingsData?.value || {
+  // Branding
+  logo_url: '',
+  company_name: 'GPS Dental Training',
+  from_name: 'GPS Dental Training',
+  reply_to_email: 'info@gpsdentaltraining.com',
+
+  // Colors
+  primary_color: '#0B52AC',
+  secondary_color: '#DDC89D',
+  header_bg_color: '#0C2044',
+  header_text_color: '#FFFFFF',
+
+  // Content
+  footer_text: 'GPS Dental Training Center | 6320 Sugarloaf Parkway, Duluth, GA 30097',
+  support_email: 'info@gpsdentaltraining.com',
+  support_phone: '(770) 962-2480',
+
+  // Social Links
+  facebook_url: 'https://www.facebook.com/gpsdentaltraining',
+  instagram_url: 'https://www.instagram.com/gpsdentaltraining',
+  linkedin_url: '',
+  twitter_url: '',
+};
+
+const currentPath = Astro.url.pathname;
+---
+
+<AdminLayout title="Email Settings">
+  <EmailSettings
+    client:load
+    currentPath={currentPath}
+    user={{ name: userName, email: userEmail }}
+    settings={currentSettings}
+  />
+</AdminLayout>

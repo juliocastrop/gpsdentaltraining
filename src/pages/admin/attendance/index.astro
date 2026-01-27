@@ -4,6 +4,8 @@
  * Check-in attendees via QR scan, manual entry, or search
  */
 import '../../../styles/global.css';
+import { getSiteSettings } from '../../../lib/data/site-settings-loader';
+const siteSettings = await getSiteSettings();
 import Navbar from '../../../components/layout/Navbar';
 import Footer from '../../../components/layout/Footer';
 import { supabaseAdmin } from '../../../lib/supabase/client';
@@ -91,7 +93,7 @@ function formatTime(dateStr: string): string {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="robots" content="noindex, nofollow" />
 
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" href={siteSettings.favicon_url} />
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -106,7 +108,7 @@ function formatTime(dateStr: string): string {
 
   <body class="min-h-screen flex flex-col bg-[#F8F9FA]">
     <Navbar
-      logo="/logo.svg"
+      logo={siteSettings.logo_url}
       transparent={false}
       client:load
     />

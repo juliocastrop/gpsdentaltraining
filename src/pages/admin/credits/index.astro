@@ -1,0 +1,174 @@
+---
+/**
+ * Admin CE Credits - GPS Dental Training
+ * Manage and view continuing education credits
+ */
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import CECreditsManager from '../../../components/admin/CECreditsManager';
+import { supabaseAdmin } from '../../../lib/supabase/client';
+
+// Check if Clerk is configured
+const clerkConfigured = !!import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY;
+
+// Get user from Clerk if available
+let userId: string | null = null;
+let isAdmin = false;
+let userName = 'Admin';
+let userEmail = 'admin@gpsdentaltraining.com';
+
+try {
+  if (clerkConfigured && Astro.locals.auth) {
+    const auth = Astro.locals.auth();
+    userId = auth?.userId || null;
+
+    if (userId) {
+      const { data: userData } = await supabaseAdmin
+        .from('users')
+        .select('role, first_name, last_name, email')
+        .eq('clerk_id', userId)
+        .single();
+
+      isAdmin = userData?.role === 'admin';
+      if (userData?.first_name) {
+        userName = `${userData.first_name} ${userData.last_name || ''}`.trim();
+      }
+      if (userData?.email) {
+        userEmail = userData.email;
+      }
+    }
+  }
+} catch {
+  isAdmin = true;
+}
+
+if (clerkConfigured && (!userId || !isAdmin)) {
+  return Astro.redirect('/sign-in?redirect_url=/admin/credits');
+}
+
+// Fetch credit data
+let creditEntries: any[] = [];
+let userCredits: any[] = [];
+let stats = {
+  totalCreditsAwarded: 0,
+  totalUsers: 0,
+  averageCreditsPerUser: 0,
+  creditsThisMonth: 0,
+};
+
+try {
+  // Get all credit transactions
+  const { data: entries } = await supabaseAdmin
+    .from('ce_ledger')
+    .select(`
+      id,
+      user_id,
+      event_id,
+      credits,
+      source,
+      transaction_type,
+      notes,
+      awarded_at,
+      users:user_id (
+        first_name,
+        last_name,
+        email
+      ),
+      events:event_id (
+        title
+      )
+    `)
+    .order('awarded_at', { ascending: false })
+    .limit(100);
+
+  creditEntries = (entries || []).map((entry) => ({
+    id: entry.id,
+    user_id: entry.user_id,
+    user_name: entry.users?.first_name
+      ? `${entry.users.first_name} ${entry.users.last_name || ''}`
+      : 'Unknown User',
+    user_email: entry.users?.email || '',
+    event_id: entry.event_id,
+    event_title: entry.events?.title || null,
+    credits: entry.credits,
+    source: entry.source,
+    transaction_type: entry.transaction_type,
+    notes: entry.notes,
+    awarded_at: entry.awarded_at,
+  }));
+
+  // Aggregate credits by user
+  const userCreditsMap = new Map<string, {
+    user_id: string;
+    user_name: string;
+    user_email: string;
+    total_credits: number;
+    events: Set<string>;
+    last_credit_date: string;
+  }>();
+
+  for (const entry of entries || []) {
+    if (entry.transaction_type === 'revoked') continue;
+
+    const existing = userCreditsMap.get(entry.user_id) || {
+      user_id: entry.user_id,
+      user_name: entry.users?.first_name
+        ? `${entry.users.first_name} ${entry.users.last_name || ''}`
+        : 'Unknown User',
+      user_email: entry.users?.email || '',
+      total_credits: 0,
+      events: new Set<string>(),
+      last_credit_date: entry.awarded_at,
+    };
+
+    existing.total_credits += entry.credits;
+    if (entry.event_id) {
+      existing.events.add(entry.event_id);
+    }
+    if (new Date(entry.awarded_at) > new Date(existing.last_credit_date)) {
+      existing.last_credit_date = entry.awarded_at;
+    }
+
+    userCreditsMap.set(entry.user_id, existing);
+  }
+
+  userCredits = Array.from(userCreditsMap.values())
+    .map((u) => ({
+      user_id: u.user_id,
+      user_name: u.user_name,
+      user_email: u.user_email,
+      total_credits: u.total_credits,
+      events_attended: u.events.size,
+      last_credit_date: u.last_credit_date,
+    }))
+    .sort((a, b) => b.total_credits - a.total_credits);
+
+  // Calculate stats
+  stats.totalCreditsAwarded = userCredits.reduce((sum, u) => sum + u.total_credits, 0);
+  stats.totalUsers = userCredits.length;
+  stats.averageCreditsPerUser = stats.totalUsers > 0 ? stats.totalCreditsAwarded / stats.totalUsers : 0;
+
+  // Credits this month
+  const startOfMonth = new Date();
+  startOfMonth.setDate(1);
+  startOfMonth.setHours(0, 0, 0, 0);
+
+  stats.creditsThisMonth = (entries || [])
+    .filter((e) => new Date(e.awarded_at) >= startOfMonth && e.transaction_type !== 'revoked')
+    .reduce((sum, e) => sum + e.credits, 0);
+} catch (error) {
+  console.error('Error fetching credits:', error);
+}
+
+const currentPath = Astro.url.pathname;
+---
+
+<AdminLayout title="CE Credits">
+  <CECreditsManager
+    client:load
+    currentPath={currentPath}
+    user={{ name: userName, email: userEmail }}
+    creditEntries={creditEntries}
+    userCredits={userCredits}
+    stats={stats}
+  />
+</AdminLayout>

@@ -4,6 +4,8 @@
  * Shows user's tickets with QR codes for check-in
  */
 import '../../styles/global.css';
+import { getSiteSettings } from '../../lib/data/site-settings-loader';
+const siteSettings = await getSiteSettings();
 import Navbar from '../../components/layout/Navbar';
 import Footer from '../../components/layout/Footer';
 import { supabaseAdmin } from '../../lib/supabase/client';
@@ -101,7 +103,7 @@ function getStatusBadge(status: string): { bg: string; text: string; label: stri
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="robots" content="noindex, nofollow" />
 
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" href={siteSettings.favicon_url} />
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -113,7 +115,7 @@ function getStatusBadge(status: string): { bg: string; text: string; label: stri
 
   <body class="min-h-screen flex flex-col bg-[#F8F9FA]">
     <Navbar
-      logo="/logo.svg"
+      logo={siteSettings.logo_url}
       transparent={false}
       client:load
     />

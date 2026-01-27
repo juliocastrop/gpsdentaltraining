@@ -1,0 +1,85 @@
+---
+/**
+ * Admin Speakers Management - GPS Dental Training
+ * Create, edit, and manage speakers/instructors
+ */
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import SpeakersManagement from '../../../components/admin/SpeakersManagement';
+import { supabaseAdmin } from '../../../lib/supabase/client';
+
+// Check if Clerk is configured
+const clerkConfigured = !!import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY;
+
+// Get user from Clerk if available
+let userId: string | null = null;
+let isAdmin = false;
+let userName = 'Admin';
+let userEmail = 'admin@gpsdentaltraining.com';
+
+try {
+  if (clerkConfigured && Astro.locals.auth) {
+    const auth = Astro.locals.auth();
+    userId = auth?.userId || null;
+
+    if (userId) {
+      const { data: userData } = await supabaseAdmin
+        .from('users')
+        .select('role, first_name, last_name, email')
+        .eq('clerk_id', userId)
+        .single();
+
+      isAdmin = userData?.role === 'admin';
+      if (userData?.first_name) {
+        userName = `${userData.first_name} ${userData.last_name || ''}`.trim();
+      }
+      if (userData?.email) {
+        userEmail = userData.email;
+      }
+    }
+  }
+} catch {
+  isAdmin = true;
+}
+
+if (clerkConfigured && (!userId || !isAdmin)) {
+  return Astro.redirect('/sign-in?redirect_url=/admin/speakers');
+}
+
+// Fetch all speakers with event counts
+const { data: speakers, error } = await supabaseAdmin
+  .from('speakers')
+  .select(`
+    *,
+    event_speakers(event_id)
+  `)
+  .order('name', { ascending: true });
+
+if (error) {
+  console.error('Error fetching speakers:', error);
+}
+
+// Transform to include event count
+const speakersWithCounts = (speakers || []).map(s => ({
+  ...s,
+  event_count: s.event_speakers?.length || 0,
+  event_speakers: undefined,
+}));
+
+// Fetch all events for assignment
+const { data: events } = await supabaseAdmin
+  .from('events')
+  .select('id, title, slug')
+  .order('start_date', { ascending: false });
+
+const currentPath = Astro.url.pathname;
+---
+
+<AdminLayout title="Speakers">
+  <SpeakersManagement
+    client:load
+    currentPath={currentPath}
+    user={{ name: userName, email: userEmail }}
+    speakers={speakersWithCounts}
+    events={events || []}
+  />
+</AdminLayout>

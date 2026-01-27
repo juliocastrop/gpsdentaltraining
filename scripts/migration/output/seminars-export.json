@@ -1,0 +1,140 @@
+{
+  "seminars": [
+    {
+      "wpId": 9216,
+      "title": "Monthly Seminars 2025 - 2026",
+      "slug": "monthly-seminars-2025-2026",
+      "description": "<p class=\"elementor-heading-title elementor-size-default\">Engage in a 10-session cycle dedicated to Literature Review, Case Discussions, and Treatment Planning Seminars</p>",
+      "year": 2025,
+      "price": 750,
+      "capacity": 50,
+      "wcProductId": 7069,
+      "status": "active",
+      "createdAt": "2025-11-18T21:58:31.000Z"
+    }
+  ],
+  "sessions": [
+    {
+      "wpId": 1,
+      "seminarWpId": 9216,
+      "sessionNumber": 1,
+      "sessionDate": "2026-01-26T05:00:00.000Z",
+      "timeStart": "18:00:00",
+      "timeEnd": "20:00:00",
+      "topic": "Case Acceptance for Extensive Treatments",
+      "description": null,
+      "capacity": 50,
+      "registeredCount": 0
+    },
+    {
+      "wpId": 2,
+      "seminarWpId": 9216,
+      "sessionNumber": 2,
+      "sessionDate": "2026-02-16T05:00:00.000Z",
+      "timeStart": "18:00:00",
+      "timeEnd": "20:00:00",
+      "topic": "Ceramics: Which one, Where and Why?",
+      "description": null,
+      "capacity": 50,
+      "registeredCount": 0
+    },
+    {
+      "wpId": 3,
+      "seminarWpId": 9216,
+      "sessionNumber": 3,
+      "sessionDate": "2026-03-30T04:00:00.000Z",
+      "timeStart": "18:00:00",
+      "timeEnd": "20:00:00",
+      "topic": "Case Presentation",
+      "description": null,
+      "capacity": 50,
+      "registeredCount": 0
+    },
+    {
+      "wpId": 4,
+      "seminarWpId": 9216,
+      "sessionNumber": 4,
+      "sessionDate": "2026-04-24T04:00:00.000Z",
+      "timeStart": "18:00:00",
+      "timeEnd": "20:00:00",
+      "topic": "All-Ceramic Full Mouth Reconstruction: The Conservative Approach",
+      "description": null,
+      "capacity": 50,
+      "registeredCount": 0
+    },
+    {
+      "wpId": 5,
+      "seminarWpId": 9216,
+      "sessionNumber": 5,
+      "sessionDate": "2026-05-15T04:00:00.000Z",
+      "timeStart": "18:00:00",
+      "timeEnd": "20:00:00",
+      "topic": "Controversies: To Save or to Extract?",
+      "description": null,
+      "capacity": 50,
+      "registeredCount": 0
+    },
+    {
+      "wpId": 6,
+      "seminarWpId": 9216,
+      "sessionNumber": 6,
+      "sessionDate": "2026-06-22T04:00:00.000Z",
+      "timeStart": "18:00:00",
+      "timeEnd": "20:00:00",
+      "topic": "Treatment Planning Complex Prosthodontic Patient",
+      "description": null,
+      "capacity": 50,
+      "registeredCount": 0
+    },
+    {
+      "wpId": 7,
+      "seminarWpId": 9216,
+      "sessionNumber": 7,
+      "sessionDate": "2026-07-27T04:00:00.000Z",
+      "timeStart": "18:00:00",
+      "timeEnd": "20:00:00",
+      "topic": "Implant Abutment Selection",
+      "description": null,
+      "capacity": 50,
+      "registeredCount": 0
+    },
+    {
+      "wpId": 8,
+      "seminarWpId": 9216,
+      "sessionNumber": 8,
+      "sessionDate": "2026-08-24T04:00:00.000Z",
+      "timeStart": "18:00:00",
+      "timeEnd": "20:00:00",
+      "topic": "Dynamic Occlusion and virtual patient",
+      "description": null,
+      "capacity": 50,
+      "registeredCount": 0
+    },
+    {
+      "wpId": 9,
+      "seminarWpId": 9216,
+      "sessionNumber": 9,
+      "sessionDate": "2026-09-21T04:00:00.000Z",
+      "timeStart": "18:00:00",
+      "timeEnd": "20:00:00",
+      "topic": "Case Presentation",
+      "description": null,
+      "capacity": 50,
+      "registeredCount": 0
+    },
+    {
+      "wpId": 10,
+      "seminarWpId": 9216,
+      "sessionNumber": 10,
+      "sessionDate": "2026-10-26T04:00:00.000Z",
+      "timeStart": "18:00:00",
+      "timeEnd": "20:00:00",
+      "topic": "Overdentures",
+      "description": null,
+      "capacity": 50,
+      "registeredCount": 0
+    }
+  ],
+  "registrations": [],
+  "attendance": []
+}

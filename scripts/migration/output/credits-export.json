@@ -1,0 +1,104 @@
+{
+  "ceLedger": [
+    {
+      "wpId": 1,
+      "userWpId": 4,
+      "eventWpId": 8804,
+      "credits": 13,
+      "source": "attendance",
+      "transactionType": "attendance",
+      "notes": "Awarded upon check-in",
+      "awardedAt": "2025-11-05T16:11:05.000Z"
+    }
+  ],
+  "certificates": [
+    {
+      "wpId": 1,
+      "ticketWpId": 1,
+      "userWpId": 4,
+      "eventWpId": 8804,
+      "certificatePath": "/home/gpsdentaltrainin/public_html/wp-content/uploads/gps-certificates/certificate-1-1762359110.pdf",
+      "certificateUrl": "https://gpsdentaltraining.com/wp-content/uploads/gps-certificates/certificate-1-1762359110.pdf",
+      "generatedAt": "2025-11-05T16:11:50.000Z",
+      "sentAt": null
+    }
+  ],
+  "eventWaitlist": [
+    {
+      "wpId": 1,
+      "ticketTypeWpId": 8821,
+      "eventWpId": 8804,
+      "userWpId": null,
+      "email": "losediy717@oremal.com",
+      "firstName": "Pedro",
+      "lastName": "Perez",
+      "phone": "",
+      "position": 1,
+      "status": "notified",
+      "notifiedAt": "2026-01-19T14:35:53.000Z",
+      "expiresAt": "2026-01-21T19:35:53.000Z",
+      "createdAt": "2026-01-19T14:03:20.000Z"
+    },
+    {
+      "wpId": 2,
+      "ticketTypeWpId": 8821,
+      "eventWpId": 8804,
+      "userWpId": null,
+      "email": "marketing@gaprostho.com",
+      "firstName": "francisco",
+      "lastName": "Coronado",
+      "phone": "6892569841",
+      "position": 1,
+      "status": "waiting",
+      "notifiedAt": null,
+      "expiresAt": null,
+      "createdAt": "2026-01-19T16:42:49.000Z"
+    },
+    {
+      "wpId": 3,
+      "ticketTypeWpId": 8821,
+      "eventWpId": 8804,
+      "userWpId": null,
+      "email": "cazarezoms151@gmail.com",
+      "firstName": "Jose",
+      "lastName": "Cazarez",
+      "phone": "4087639314",
+      "position": 2,
+      "status": "waiting",
+      "notifiedAt": null,
+      "expiresAt": null,
+      "createdAt": "2026-01-19T21:03:57.000Z"
+    },
+    {
+      "wpId": 4,
+      "ticketTypeWpId": 8821,
+      "eventWpId": 8804,
+      "userWpId": null,
+      "email": "doctor@dvdentalstudio.com",
+      "firstName": "Monica",
+      "lastName": "Dupim",
+      "phone": "8033288148",
+      "position": 3,
+      "status": "waiting",
+      "notifiedAt": null,
+      "expiresAt": null,
+      "createdAt": "2026-01-22T13:32:34.000Z"
+    },
+    {
+      "wpId": 5,
+      "ticketTypeWpId": 8821,
+      "eventWpId": 8804,
+      "userWpId": null,
+      "email": "eliana_ines@hotmail.com",
+      "firstName": "Eliana",
+      "lastName": "Valdez",
+      "phone": "9782598228",
+      "position": 4,
+      "status": "waiting",
+      "notifiedAt": null,
+      "expiresAt": null,
+      "createdAt": "2026-01-22T16:40:38.000Z"
+    }
+  ],
+  "seminarWaitlist": []
+}

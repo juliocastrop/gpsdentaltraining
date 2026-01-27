@@ -1,0 +1,95 @@
+---
+/**
+ * Admin Seminar Registrations - GPS Dental Training
+ * View and manage seminar registrations
+ */
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import SeminarRegistrations from '../../../components/admin/SeminarRegistrations';
+import { supabaseAdmin } from '../../../lib/supabase/client';
+
+// Check if Clerk is configured
+const clerkConfigured = !!import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY;
+
+// Get user from Clerk if available
+let userId: string | null = null;
+let isAdmin = false;
+let userName = 'Admin';
+let userEmail = 'admin@gpsdentaltraining.com';
+
+try {
+  if (clerkConfigured && Astro.locals.auth) {
+    const auth = Astro.locals.auth();
+    userId = auth?.userId || null;
+
+    if (userId) {
+      const { data: userData } = await supabaseAdmin
+        .from('users')
+        .select('role, first_name, last_name, email')
+        .eq('clerk_id', userId)
+        .single();
+
+      isAdmin = userData?.role === 'admin';
+      if (userData?.first_name) {
+        userName = `${userData.first_name} ${userData.last_name || ''}`.trim();
+      }
+      if (userData?.email) {
+        userEmail = userData.email;
+      }
+    }
+  }
+} catch {
+  isAdmin = true;
+}
+
+if (clerkConfigured && (!userId || !isAdmin)) {
+  return Astro.redirect('/sign-in?redirect_url=/admin/seminars/registrations');
+}
+
+// Get filter params
+const seminarFilter = Astro.url.searchParams.get('seminar_id') || '';
+const statusFilter = Astro.url.searchParams.get('status') || '';
+
+// Fetch all seminars
+const { data: seminars } = await supabaseAdmin
+  .from('seminars')
+  .select('id, title, year')
+  .order('year', { ascending: false });
+
+// Build registrations query
+let registrationsQuery = supabaseAdmin
+  .from('seminar_registrations')
+  .select(`
+    *,
+    user:user_id(id, first_name, last_name, email),
+    seminar:seminar_id(id, title, year)
+  `)
+  .order('created_at', { ascending: false });
+
+if (seminarFilter) {
+  registrationsQuery = registrationsQuery.eq('seminar_id', seminarFilter);
+}
+
+if (statusFilter) {
+  registrationsQuery = registrationsQuery.eq('status', statusFilter);
+}
+
+const { data: registrations, error } = await registrationsQuery;
+
+if (error) {
+  console.error('Error fetching registrations:', error);
+}
+
+const currentPath = Astro.url.pathname;
+---
+
+<AdminLayout title="Seminar Registrations">
+  <SeminarRegistrations
+    client:load
+    currentPath={currentPath}
+    user={{ name: userName, email: userEmail }}
+    registrations={registrations || []}
+    seminars={seminars || []}
+    seminarFilter={seminarFilter}
+    statusFilter={statusFilter}
+  />
+</AdminLayout>

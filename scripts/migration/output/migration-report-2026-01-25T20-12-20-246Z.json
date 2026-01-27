@@ -1,0 +1,126 @@
+{
+  "timestamp": "2026-01-25T20:12:20.246Z",
+  "dryRun": false,
+  "results": [
+    {
+      "entity": "users",
+      "total": 26,
+      "migrated": 0,
+      "skipped": 0,
+      "failed": 26,
+      "errors": [
+        {
+          "id": 1,
+          "error": "Failed to create Clerk user"
+        },
+        {
+          "id": 2,
+          "error": "Failed to create Clerk user"
+        },
+        {
+          "id": 3,
+          "error": "Failed to create Clerk user"
+        },
+        {
+          "id": 4,
+          "error": "Failed to create Clerk user"
+        },
+        {
+          "id": 5,
+          "error": "Failed to create Clerk user"
+        },
+        {
+          "id": 6,
+          "error": "Failed to create Clerk user"
+        },
+        {
+          "id": 7,
+          "error": "Failed to create Clerk user"
+        },
+        {
+          "id": 13,
+          "error": "Failed to create Clerk user"
+        },
+        {
+          "id": 14,
+          "error": "Failed to create Clerk user"
+        },
+        {
+          "id": 18,
+          "error": "Failed to create Clerk user"
+        },
+        {
+          "id": 19,
+          "error": "Failed to create Clerk user"
+        },
+        {
+          "id": 20,
+          "error": "Failed to create Clerk user"
+        },
+        {
+          "id": 21,
+          "error": "Failed to create Clerk user"
+        },
+        {
+          "id": 22,
+          "error": "Failed to create Clerk user"
+        },
+        {
+          "id": 23,
+          "error": "Failed to create Clerk user"
+        },
+        {
+          "id": 24,
+          "error": "Failed to create Clerk user"
+        },
+        {
+          "id": 25,
+          "error": "Failed to create Clerk user"
+        },
+        {
+          "id": 26,
+          "error": "Failed to create Clerk user"
+        },
+        {
+          "id": 27,
+          "error": "Failed to create Clerk user"
+        },
+        {
+          "id": 28,
+          "error": "Failed to create Clerk user"
+        },
+        {
+          "id": 29,
+          "error": "Failed to create Clerk user"
+        },
+        {
+          "id": 30,
+          "error": "Failed to create Clerk user"
+        },
+        {
+          "id": 31,
+          "error": "Failed to create Clerk user"
+        },
+        {
+          "id": 32,
+          "error": "Failed to create Clerk user"
+        },
+        {
+          "id": 33,
+          "error": "Failed to create Clerk user"
+        },
+        {
+          "id": 34,
+          "error": "Failed to create Clerk user"
+        }
+      ],
+      "startTime": "2026-01-25T20:12:17.063Z",
+      "endTime": "2026-01-25T20:12:20.245Z"
+    }
+  ],
+  "summary": {
+    "totalMigrated": 0,
+    "totalSkipped": 0,
+    "totalFailed": 26
+  }
+}

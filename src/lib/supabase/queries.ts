@@ -2663,3 +2663,66 @@ export async function getSeminarStats(seminarId: string) {
     total_credits_awarded: totalCreditsAwarded,
   };
 }
+
+/**
+ * Delete seminar attendance record (undo check-in)
+ * - Reverts registration session counts
+ * - Removes CE credits from ledger
+ */
+export async function deleteSeminarAttendance(attendanceId: string) {
+  // Get attendance record first
+  const { data: attendance, error: fetchError } = await supabaseAdmin
+    .from('seminar_attendance')
+    .select('*, registration:seminar_registrations(*)')
+    .eq('id', attendanceId)
+    .single();
+
+  if (fetchError || !attendance) {
+    throw new Error('Attendance record not found');
+  }
+
+  // Delete the attendance record
+  const { error: deleteError } = await supabaseAdmin
+    .from('seminar_attendance')
+    .delete()
+    .eq('id', attendanceId);
+
+  if (deleteError) throw deleteError;
+
+  // Update registration counters
+  const registration = attendance.registration;
+  if (registration) {
+    const newSessionsCompleted = Math.max(0, registration.sessions_completed - 1);
+    const newSessionsRemaining = Math.min(10, registration.sessions_remaining + 1);
+    const updateData: any = {
+      sessions_completed: newSessionsCompleted,
+      sessions_remaining: newSessionsRemaining,
+    };
+
+    // Revert status if needed
+    if (registration.status === 'completed' && newSessionsRemaining > 0) {
+      updateData.status = 'active';
+    }
+
+    // Revert makeup_used if this was a makeup session
+    if (attendance.is_makeup) {
+      updateData.makeup_used = false;
+    }
+
+    await supabaseAdmin
+      .from('seminar_registrations')
+      .update(updateData)
+      .eq('id', attendance.registration_id);
+  }
+
+  // Remove CE credits from ledger (best effort - find by user, source, and approximate time)
+  await supabaseAdmin
+    .from('ce_ledger')
+    .delete()
+    .eq('user_id', attendance.user_id)
+    .eq('source', 'seminar_session')
+    .gte('created_at', new Date(new Date(attendance.checked_in_at).getTime() - 60000).toISOString())
+    .lte('created_at', new Date(new Date(attendance.checked_in_at).getTime() + 60000).toISOString());
+
+  return { success: true, attendance };
+}

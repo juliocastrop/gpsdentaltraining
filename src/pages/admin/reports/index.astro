@@ -1,0 +1,163 @@
+---
+/**
+ * Admin Reports & Analytics - GPS Dental Training
+ * Dashboard with statistics, exports, and event reports
+ */
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import ReportsDashboard from '../../../components/admin/ReportsDashboard';
+import { supabaseAdmin } from '../../../lib/supabase/client';
+
+// Check if Clerk is configured
+const clerkConfigured = !!import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY;
+
+// Get user from Clerk if available
+let userId: string | null = null;
+let isAdmin = false;
+let userName = 'Admin';
+let userEmail = 'admin@gpsdentaltraining.com';
+
+try {
+  if (clerkConfigured && Astro.locals.auth) {
+    const auth = Astro.locals.auth();
+    userId = auth?.userId || null;
+
+    if (userId) {
+      const { data: userData } = await supabaseAdmin
+        .from('users')
+        .select('role, first_name, last_name, email')
+        .eq('clerk_id', userId)
+        .single();
+
+      isAdmin = userData?.role === 'admin';
+      if (userData?.first_name) {
+        userName = `${userData.first_name} ${userData.last_name || ''}`.trim();
+      }
+      if (userData?.email) {
+        userEmail = userData.email;
+      }
+    }
+  }
+} catch {
+  isAdmin = true;
+}
+
+if (clerkConfigured && (!userId || !isAdmin)) {
+  return Astro.redirect('/sign-in?redirect_url=/admin/reports');
+}
+
+// Fetch statistics
+// Total events
+const { count: totalEvents } = await supabaseAdmin
+  .from('events')
+  .select('*', { count: 'exact', head: true })
+  .eq('status', 'published');
+
+// Total tickets sold (from completed orders)
+const { count: totalTickets } = await supabaseAdmin
+  .from('tickets')
+  .select('*', { count: 'exact', head: true })
+  .neq('status', 'cancelled');
+
+// Total checked in
+const { count: totalCheckedIn } = await supabaseAdmin
+  .from('attendance')
+  .select('*', { count: 'exact', head: true });
+
+// Total seminar registrations
+const { count: totalSeminarRegistrations } = await supabaseAdmin
+  .from('seminar_registrations')
+  .select('*', { count: 'exact', head: true })
+  .eq('status', 'active');
+
+// Total CE credits awarded
+const { data: creditsData } = await supabaseAdmin
+  .from('ce_ledger')
+  .select('credits')
+  .eq('transaction_type', 'earned');
+
+const totalCreditsAwarded = (creditsData || []).reduce((sum, row) => sum + (row.credits || 0), 0);
+
+// Attendance rate
+const attendanceRate = totalTickets && totalTickets > 0
+  ? Math.round(((totalCheckedIn || 0) / totalTickets) * 100)
+  : 0;
+
+// Fetch all events for reports and export filters
+const { data: events } = await supabaseAdmin
+  .from('events')
+  .select('id, title, slug, start_date, end_date, ce_credits')
+  .eq('status', 'published')
+  .order('start_date', { ascending: false });
+
+// Fetch events with stats for detailed table
+const eventsWithStats = await Promise.all(
+  (events || []).map(async (event) => {
+    // Tickets sold
+    const { count: ticketsSold } = await supabaseAdmin
+      .from('tickets')
+      .select('*', { count: 'exact', head: true })
+      .eq('event_id', event.id)
+      .neq('status', 'cancelled');
+
+    // Checked in
+    const { count: checkedIn } = await supabaseAdmin
+      .from('attendance')
+      .select('*', { count: 'exact', head: true })
+      .eq('event_id', event.id);
+
+    // Total capacity (from ticket types)
+    const { data: ticketTypes } = await supabaseAdmin
+      .from('ticket_types')
+      .select('quantity')
+      .eq('event_id', event.id);
+
+    let totalCapacity = 0;
+    let hasUnlimited = false;
+    for (const tt of ticketTypes || []) {
+      if (tt.quantity === null || tt.quantity === -1) {
+        hasUnlimited = true;
+        break;
+      }
+      totalCapacity += tt.quantity;
+    }
+
+    const rate = ticketsSold && ticketsSold > 0
+      ? Math.round(((checkedIn || 0) / ticketsSold) * 100)
+      : 0;
+
+    return {
+      ...event,
+      tickets_sold: ticketsSold || 0,
+      checked_in: checkedIn || 0,
+      total_capacity: hasUnlimited ? -1 : totalCapacity,
+      attendance_rate: rate,
+    };
+  })
+);
+
+// Fetch seminars for seminar reports
+const { data: seminars } = await supabaseAdmin
+  .from('seminars')
+  .select('id, title, year')
+  .order('year', { ascending: false });
+
+const currentPath = Astro.url.pathname;
+---
+
+<AdminLayout title="Reports & Analytics">
+  <ReportsDashboard
+    client:load
+    currentPath={currentPath}
+    user={{ name: userName, email: userEmail }}
+    stats={{
+      totalEvents: totalEvents || 0,
+      totalTickets: totalTickets || 0,
+      totalCheckedIn: totalCheckedIn || 0,
+      totalSeminarRegistrations: totalSeminarRegistrations || 0,
+      totalCreditsAwarded,
+      attendanceRate,
+    }}
+    events={eventsWithStats}
+    seminars={seminars || []}
+  />
+</AdminLayout>

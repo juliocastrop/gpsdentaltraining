@@ -1,0 +1,150 @@
+---
+/**
+ * Admin Seminar Certificates - GPS Dental Training
+ * Generate and manage bi-annual CE certificates for seminar participants
+ */
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import SeminarCertificates from '../../../components/admin/SeminarCertificates';
+import { supabaseAdmin } from '../../../lib/supabase/client';
+
+// Check if Clerk is configured
+const clerkConfigured = !!import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY;
+
+// Get user from Clerk if available
+let userId: string | null = null;
+let isAdmin = false;
+let userName = 'Admin';
+let userEmail = 'admin@gpsdentaltraining.com';
+
+try {
+  if (clerkConfigured && Astro.locals.auth) {
+    const auth = Astro.locals.auth();
+    userId = auth?.userId || null;
+
+    if (userId) {
+      const { data: userData } = await supabaseAdmin
+        .from('users')
+        .select('role, first_name, last_name, email')
+        .eq('clerk_id', userId)
+        .single();
+
+      isAdmin = userData?.role === 'admin';
+      if (userData?.first_name) {
+        userName = `${userData.first_name} ${userData.last_name || ''}`.trim();
+      }
+      if (userData?.email) {
+        userEmail = userData.email;
+      }
+    }
+  }
+} catch {
+  isAdmin = true;
+}
+
+if (clerkConfigured && (!userId || !isAdmin)) {
+  return Astro.redirect('/sign-in?redirect_url=/admin/seminars/certificates');
+}
+
+// Get filter params
+const seminarFilter = Astro.url.searchParams.get('seminar_id') || '';
+const periodFilter = Astro.url.searchParams.get('period') || 'second_half';
+
+// Fetch all seminars
+const { data: seminars } = await supabaseAdmin
+  .from('seminars')
+  .select('id, title, year')
+  .order('year', { ascending: false });
+
+// Determine date range based on period
+const currentYear = new Date().getFullYear();
+let startDate: string;
+let endDate: string;
+let periodLabel: string;
+
+if (periodFilter === 'first_half') {
+  startDate = `${currentYear}-01-01`;
+  endDate = `${currentYear}-06-30`;
+  periodLabel = `January - June ${currentYear}`;
+} else {
+  startDate = `${currentYear}-07-01`;
+  endDate = `${currentYear}-12-31`;
+  periodLabel = `July - December ${currentYear}`;
+}
+
+// Fetch registrations with attendance data for selected seminar
+let registrations: any[] = [];
+if (seminarFilter) {
+  const { data: regData } = await supabaseAdmin
+    .from('seminar_registrations')
+    .select(`
+      id,
+      user:user_id(id, first_name, last_name, email),
+      seminar:seminar_id(id, title, year),
+      sessions_completed,
+      sessions_remaining,
+      status
+    `)
+    .eq('seminar_id', seminarFilter)
+    .eq('status', 'active');
+
+  // For each registration, get attendance in the period and check for existing certificate
+  registrations = await Promise.all(
+    (regData || []).map(async (reg) => {
+      // Get attendance count and credits for the period
+      const { data: attendanceData } = await supabaseAdmin
+        .from('seminar_attendance')
+        .select('id, credits_awarded, checked_in_at')
+        .eq('registration_id', reg.id)
+        .gte('checked_in_at', `${startDate}T00:00:00`)
+        .lte('checked_in_at', `${endDate}T23:59:59`);
+
+      const sessionsInPeriod = attendanceData?.length || 0;
+      const creditsInPeriod = (attendanceData || []).reduce((sum, a) => sum + (a.credits_awarded || 0), 0);
+
+      // Check for existing certificate
+      const { data: certData } = await supabaseAdmin
+        .from('seminar_certificates')
+        .select('id, certificate_url, generated_at, sent_at, period')
+        .eq('registration_id', reg.id)
+        .eq('period', periodFilter)
+        .eq('year', currentYear)
+        .single();
+
+      return {
+        ...reg,
+        sessions_in_period: sessionsInPeriod,
+        credits_in_period: creditsInPeriod,
+        eligible: creditsInPeriod > 0,
+        certificate: certData || null,
+      };
+    })
+  );
+}
+
+// Calculate stats
+const totalRegistrations = registrations.length;
+const eligibleCount = registrations.filter(r => r.eligible).length;
+const generatedCount = registrations.filter(r => r.certificate).length;
+const sentCount = registrations.filter(r => r.certificate?.sent_at).length;
+
+const currentPath = Astro.url.pathname;
+---
+
+<AdminLayout title="Seminar Certificates">
+  <SeminarCertificates
+    client:load
+    currentPath={currentPath}
+    user={{ name: userName, email: userEmail }}
+    registrations={registrations}
+    seminars={seminars || []}
+    seminarFilter={seminarFilter}
+    periodFilter={periodFilter}
+    periodLabel={periodLabel}
+    stats={{
+      total: totalRegistrations,
+      eligible: eligibleCount,
+      generated: generatedCount,
+      sent: sentCount,
+    }}
+  />
+</AdminLayout>

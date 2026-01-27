@@ -9,6 +9,8 @@
  * - Transactional data (tickets, availability) always from Supabase
  */
 import '../../styles/global.css';
+import { getSiteSettings } from '../../lib/data/site-settings-loader';
+const siteSettings = await getSiteSettings();
 import Navbar from '../../components/layout/Navbar';
 import Footer from '../../components/layout/Footer';
 import CourseCard from '../../components/events/CourseCard.astro';
@@ -89,7 +91,7 @@ const pageDescription = "Explore our comprehensive dental training courses and e
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content={pageDescription} />
 
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" href={siteSettings.favicon_url} />
 
     <!-- Open Graph -->
     <meta property="og:type" content="website" />
@@ -109,8 +111,8 @@ const pageDescription = "Explore our comprehensive dental training courses and e
   <body class="min-h-screen flex flex-col bg-white">
     <!-- Navigation -->
     <Navbar
-      logo="/logo.svg"
-      logoWhite="/logo-white.svg"
+      logo={siteSettings.logo_url}
+      logoWhite={siteSettings.logo_white_url}
       transparent={true}
       client:load
     />

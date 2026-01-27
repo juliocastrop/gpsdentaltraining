@@ -1,0 +1,156 @@
+---
+/**
+ * Admin Cart Recovery - GPS Dental Training
+ * Manage abandoned carts and recovery campaigns
+ */
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import CartRecoveryDashboard from '../../../components/admin/CartRecoveryDashboard';
+import { supabaseAdmin } from '../../../lib/supabase/client';
+
+// Check if Clerk is configured
+const clerkConfigured = !!import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY;
+
+// Get user from Clerk if available
+let userId: string | null = null;
+let isAdmin = false;
+let userName = 'Admin';
+let userEmail = 'admin@gpsdentaltraining.com';
+
+try {
+  if (clerkConfigured && Astro.locals.auth) {
+    const auth = Astro.locals.auth();
+    userId = auth?.userId || null;
+
+    if (userId) {
+      const { data: userData } = await supabaseAdmin
+        .from('users')
+        .select('role, first_name, last_name, email')
+        .eq('clerk_id', userId)
+        .single();
+
+      isAdmin = userData?.role === 'admin';
+      if (userData?.first_name) {
+        userName = `${userData.first_name} ${userData.last_name || ''}`.trim();
+      }
+      if (userData?.email) {
+        userEmail = userData.email;
+      }
+    }
+  }
+} catch {
+  isAdmin = true;
+}
+
+if (clerkConfigured && (!userId || !isAdmin)) {
+  return Astro.redirect('/sign-in?redirect_url=/admin/cart-recovery');
+}
+
+// Fetch cart recovery data
+let carts: any[] = [];
+let stats = {
+  totalAbandoned: 0,
+  totalRecovered: 0,
+  recoveryRate: 0,
+  abandonedValue: 0,
+  recoveredValue: 0,
+  emailsSent: 0,
+  emailsOpened: 0,
+  emailsClicked: 0,
+};
+
+try {
+  // Check if the abandoned_carts table exists
+  const { data: tableCheck, error: tableError } = await supabaseAdmin
+    .from('abandoned_carts')
+    .select('id')
+    .limit(1);
+
+  if (!tableError) {
+    // Fetch abandoned carts
+    const { data: cartsData } = await supabaseAdmin
+      .from('abandoned_carts')
+      .select('*')
+      .order('abandoned_at', { ascending: false })
+      .limit(100);
+
+    carts = (cartsData || []).map((cart) => ({
+      id: cart.id,
+      email: cart.email || 'unknown@email.com',
+      first_name: cart.first_name,
+      last_name: cart.last_name,
+      cart_total: cart.cart_total || 0,
+      item_count: cart.item_count || 0,
+      status: cart.status,
+      emails_sent: cart.emails_sent || 0,
+      created_at: cart.created_at,
+      abandoned_at: cart.abandoned_at,
+      recovered_at: cart.recovered_at,
+      cart_contents: cart.cart_contents || [],
+    }));
+
+    // Calculate stats
+    const { count: totalAbandoned } = await supabaseAdmin
+      .from('abandoned_carts')
+      .select('*', { count: 'exact', head: true });
+
+    const { count: totalRecovered } = await supabaseAdmin
+      .from('abandoned_carts')
+      .select('*', { count: 'exact', head: true })
+      .in('status', ['recovered', 'converted']);
+
+    const { data: abandonedValueData } = await supabaseAdmin
+      .from('abandoned_carts')
+      .select('cart_total')
+      .eq('status', 'abandoned');
+
+    const { data: recoveredValueData } = await supabaseAdmin
+      .from('abandoned_carts')
+      .select('cart_total')
+      .in('status', ['recovered', 'converted']);
+
+    // Email stats
+    const { count: emailsSent } = await supabaseAdmin
+      .from('cart_recovery_emails')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'sent');
+
+    const { count: emailsOpened } = await supabaseAdmin
+      .from('cart_recovery_emails')
+      .select('*', { count: 'exact', head: true })
+      .not('opened_at', 'is', null);
+
+    const { count: emailsClicked } = await supabaseAdmin
+      .from('cart_recovery_emails')
+      .select('*', { count: 'exact', head: true })
+      .not('clicked_at', 'is', null);
+
+    stats = {
+      totalAbandoned: totalAbandoned || 0,
+      totalRecovered: totalRecovered || 0,
+      recoveryRate: totalAbandoned && totalAbandoned > 0
+        ? ((totalRecovered || 0) / totalAbandoned) * 100
+        : 0,
+      abandonedValue: abandonedValueData?.reduce((sum, c) => sum + (c.cart_total || 0), 0) || 0,
+      recoveredValue: recoveredValueData?.reduce((sum, c) => sum + (c.cart_total || 0), 0) || 0,
+      emailsSent: emailsSent || 0,
+      emailsOpened: emailsOpened || 0,
+      emailsClicked: emailsClicked || 0,
+    };
+  }
+} catch (error) {
+  console.error('Error fetching cart recovery data:', error);
+  // Table might not exist yet - that's OK for initial setup
+}
+
+const currentPath = Astro.url.pathname;
+---
+
+<AdminLayout title="Cart Recovery">
+  <CartRecoveryDashboard
+    client:load
+    currentPath={currentPath}
+    user={{ name: userName, email: userEmail }}
+    carts={carts}
+    stats={stats}
+  />
+</AdminLayout>

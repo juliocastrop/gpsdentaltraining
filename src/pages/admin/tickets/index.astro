@@ -1,0 +1,103 @@
+---
+/**
+ * Admin Tickets Management - GPS Dental Training
+ * View and manage purchased tickets across all events
+ */
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import TicketsManagement from '../../../components/admin/TicketsManagement';
+import { supabaseAdmin } from '../../../lib/supabase/client';
+
+// Check if Clerk is configured
+const clerkConfigured = !!import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY;
+
+// Get user from Clerk if available
+let userId: string | null = null;
+let isAdmin = false;
+let userName = 'Admin';
+let userEmail = 'admin@gpsdentaltraining.com';
+
+try {
+  if (clerkConfigured && Astro.locals.auth) {
+    const auth = Astro.locals.auth();
+    userId = auth?.userId || null;
+
+    if (userId) {
+      const { data: userData } = await supabaseAdmin
+        .from('users')
+        .select('role, first_name, last_name, email')
+        .eq('clerk_id', userId)
+        .single();
+
+      isAdmin = userData?.role === 'admin';
+      if (userData?.first_name) {
+        userName = `${userData.first_name} ${userData.last_name || ''}`.trim();
+      }
+      if (userData?.email) {
+        userEmail = userData.email;
+      }
+    }
+  }
+} catch {
+  isAdmin = true;
+}
+
+if (clerkConfigured && (!userId || !isAdmin)) {
+  return Astro.redirect('/sign-in?redirect_url=/admin/tickets');
+}
+
+// Get filter params
+const eventFilter = Astro.url.searchParams.get('event_id') || '';
+const statusFilter = Astro.url.searchParams.get('status') || '';
+
+// Fetch all events for filter dropdown
+const { data: events } = await supabaseAdmin
+  .from('events')
+  .select('id, title, slug')
+  .order('start_date', { ascending: false });
+
+// Build tickets query
+let ticketsQuery = supabaseAdmin
+  .from('tickets')
+  .select(`
+    id,
+    ticket_code,
+    attendee_name,
+    attendee_email,
+    status,
+    created_at,
+    qr_code_url,
+    event:event_id(id, title, slug),
+    ticket_type:ticket_type_id(id, name, price),
+    order:order_id(id, order_number, status, billing_email)
+  `)
+  .order('created_at', { ascending: false })
+  .limit(200);
+
+if (eventFilter) {
+  ticketsQuery = ticketsQuery.eq('event_id', eventFilter);
+}
+
+if (statusFilter) {
+  ticketsQuery = ticketsQuery.eq('status', statusFilter);
+}
+
+const { data: tickets, error: ticketsError } = await ticketsQuery;
+
+if (ticketsError) {
+  console.error('Error fetching tickets:', ticketsError);
+}
+
+const currentPath = Astro.url.pathname;
+---
+
+<AdminLayout title="Tickets Management">
+  <TicketsManagement
+    client:load
+    currentPath={currentPath}
+    user={{ name: userName, email: userEmail }}
+    tickets={tickets || []}
+    events={events || []}
+    eventFilter={eventFilter}
+    statusFilter={statusFilter}
+  />
+</AdminLayout>

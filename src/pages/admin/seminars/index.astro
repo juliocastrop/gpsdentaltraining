@@ -1,0 +1,153 @@
+---
+/**
+ * Admin Seminars List - GPS Dental Training
+ * Manage monthly seminar programs
+ */
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import SeminarsList from '../../../components/admin/SeminarsList';
+import { supabaseAdmin } from '../../../lib/supabase/client';
+
+// Check if Clerk is configured
+const clerkConfigured = !!import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY;
+
+// Get user from Clerk if available
+let userId: string | null = null;
+let isAdmin = false;
+let userName = 'Admin';
+let userEmail = 'admin@gpsdentaltraining.com';
+
+try {
+  if (clerkConfigured && Astro.locals.auth) {
+    const auth = Astro.locals.auth();
+    userId = auth?.userId || null;
+
+    if (userId) {
+      const { data: userData } = await supabaseAdmin
+        .from('users')
+        .select('role, first_name, last_name, email')
+        .eq('clerk_id', userId)
+        .single();
+
+      isAdmin = userData?.role === 'admin';
+      if (userData?.first_name) {
+        userName = `${userData.first_name} ${userData.last_name || ''}`.trim();
+      }
+      if (userData?.email) {
+        userEmail = userData.email;
+      }
+    }
+  }
+} catch {
+  isAdmin = true;
+}
+
+if (clerkConfigured && (!userId || !isAdmin)) {
+  return Astro.redirect('/sign-in?redirect_url=/admin/seminars');
+}
+
+// Fetch seminars
+let seminars: any[] = [];
+let stats = {
+  totalRegistrations: 0,
+  activeRegistrations: 0,
+  sessionsThisMonth: 0,
+  creditsAwarded: 0,
+};
+
+try {
+  const { data: seminarsData } = await supabaseAdmin
+    .from('seminars')
+    .select(`
+      id,
+      title,
+      year,
+      price
+    `)
+    .order('year', { ascending: false });
+
+  const today = new Date();
+  const currentYear = today.getFullYear();
+
+  for (const seminar of seminarsData || []) {
+    // Get sessions count
+    const { data: sessions } = await supabaseAdmin
+      .from('seminar_sessions')
+      .select('id, session_date')
+      .eq('seminar_id', seminar.id);
+
+    const totalSessions = sessions?.length || 0;
+    const completedSessions = sessions?.filter(
+      (s) => new Date(s.session_date) < today
+    ).length || 0;
+
+    // Get registrations count
+    const { count: registrations } = await supabaseAdmin
+      .from('seminar_registrations')
+      .select('*', { count: 'exact', head: true })
+      .eq('seminar_id', seminar.id);
+
+    const { count: activeRegistrations } = await supabaseAdmin
+      .from('seminar_registrations')
+      .select('*', { count: 'exact', head: true })
+      .eq('seminar_id', seminar.id)
+      .eq('status', 'active');
+
+    // Get CE credits awarded for this seminar
+    const { data: attendanceData } = await supabaseAdmin
+      .from('seminar_attendance')
+      .select('credits_awarded')
+      .eq('seminar_id', seminar.id);
+
+    const ceCreditsTotal = attendanceData?.reduce((sum, a) => sum + (a.credits_awarded || 0), 0) || 0;
+
+    // Determine status
+    let status: 'active' | 'completed' | 'upcoming' = 'active';
+    if (seminar.year < currentYear) {
+      status = 'completed';
+    } else if (seminar.year > currentYear) {
+      status = 'upcoming';
+    }
+
+    seminars.push({
+      ...seminar,
+      totalSessions,
+      completedSessions,
+      registrations: registrations || 0,
+      activeRegistrations: activeRegistrations || 0,
+      ceCreditsTotal,
+      status,
+    });
+
+    // Update stats
+    stats.totalRegistrations += registrations || 0;
+    stats.activeRegistrations += activeRegistrations || 0;
+    stats.creditsAwarded += ceCreditsTotal;
+  }
+
+  // Sessions this month
+  const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+  const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+
+  const { count: sessionsThisMonth } = await supabaseAdmin
+    .from('seminar_sessions')
+    .select('*', { count: 'exact', head: true })
+    .gte('session_date', startOfMonth.toISOString().split('T')[0])
+    .lte('session_date', endOfMonth.toISOString().split('T')[0]);
+
+  stats.sessionsThisMonth = sessionsThisMonth || 0;
+} catch (error) {
+  console.error('Error fetching seminars:', error);
+}
+
+const currentPath = Astro.url.pathname;
+---
+
+<AdminLayout title="Monthly Seminars">
+  <SeminarsList
+    client:load
+    currentPath={currentPath}
+    user={{ name: userName, email: userEmail }}
+    seminars={seminars}
+    stats={stats}
+  />
+</AdminLayout>
