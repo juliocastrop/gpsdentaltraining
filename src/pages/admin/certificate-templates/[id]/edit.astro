@@ -152,8 +152,8 @@ const isSeminar = template.template_type === 'seminar';
                     name="page_orientation"
                     class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC]/20 focus:border-[#0B52AC] outline-none"
                   >
-                    <option value="landscape" selected={template.page_orientation === 'landscape'}>Landscape</option>
-                    <option value="portrait" selected={template.page_orientation === 'portrait'}>Portrait</option>
+                    <option value="landscape" selected={template.page_orientation === 'L' || template.page_orientation === 'landscape'}>Landscape</option>
+                    <option value="portrait" selected={template.page_orientation === 'P' || template.page_orientation === 'portrait'}>Portrait</option>
                   </select>
                 </div>
                 <div>
@@ -837,23 +837,35 @@ const isSeminar = template.template_type === 'seminar';
       // Collect form data
       function collectFormData() {
         const data = {};
-        const inputs = document.querySelectorAll('input:not([type="color"]):not([name$="_text"]), select, textarea');
+
+        // Get text, url, and number inputs (exclude color duplicates and file inputs)
+        const inputs = document.querySelectorAll('input[type="text"], input[type="url"], input[type="number"], select, textarea');
         inputs.forEach(input => {
           const name = input.name;
-          if (!name) return;
+          // Skip inputs without name or with _text suffix (color picker text duplicates)
+          if (!name || name.endsWith('_text')) return;
 
-          if (input.type === 'checkbox') {
-            data[name] = input.checked;
-          } else if (input.type === 'number') {
+          if (input.type === 'number') {
             data[name] = input.value ? parseFloat(input.value) : null;
+          } else if (input.tagName === 'SELECT') {
+            data[name] = input.value;
           } else {
             data[name] = input.value || null;
           }
         });
 
+        // Get checkbox values
+        document.querySelectorAll('input[type="checkbox"]').forEach(input => {
+          if (input.name) {
+            data[input.name] = input.checked;
+          }
+        });
+
         // Get color values from color inputs
         document.querySelectorAll('input[type="color"]').forEach(input => {
-          data[input.name] = input.value;
+          if (input.name) {
+            data[input.name] = input.value;
+          }
         });
 
         return data;

@@ -48,10 +48,44 @@ export const PUT: APIRoute = async ({ params, request }) => {
 
     const body = await request.json();
 
-    // Remove read-only fields
-    const { id: _, created_at, updated_at, ...updateData } = body;
+    // Remove read-only fields and fields that don't exist in DB
+    const {
+      id: _,
+      created_at,
+      updated_at,
+      // Remove text input duplicates (color pickers sync fields)
+      header_bg_color_text,
+      header_text_color_text,
+      primary_color_text,
+      secondary_color_text,
+      accent_color_text,
+      attendee_name_color_text,
+      event_title_color_text,
+      date_color_text,
+      border_color_text,
+      ...updateData
+    } = body;
 
-    const template = await updateCertificateTemplate(id, updateData);
+    // Clean up null/undefined values and ensure proper types
+    const cleanedData: Record<string, any> = {};
+    for (const [key, value] of Object.entries(updateData)) {
+      // Skip undefined values
+      if (value === undefined) continue;
+
+      // Convert empty strings to null for URL fields
+      if (typeof value === 'string' && value === '' && key.includes('_url')) {
+        cleanedData[key] = null;
+      }
+      // Convert page_orientation from full word to single letter
+      else if (key === 'page_orientation') {
+        cleanedData[key] = value === 'landscape' ? 'L' : value === 'portrait' ? 'P' : value;
+      }
+      else {
+        cleanedData[key] = value;
+      }
+    }
+
+    const template = await updateCertificateTemplate(id, cleanedData);
 
     return new Response(JSON.stringify(template), {
       status: 200,
@@ -67,7 +101,11 @@ export const PUT: APIRoute = async ({ params, request }) => {
       });
     }
 
-    return new Response(JSON.stringify({ error: 'Failed to update template' }), {
+    // Return more detailed error for debugging
+    return new Response(JSON.stringify({
+      error: 'Failed to update template',
+      details: error.message || error.code || String(error),
+    }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
     });
