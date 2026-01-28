@@ -102,8 +102,8 @@ function formatTime(dateStr: string): string {
 
     <title>Attendance Check-in | Admin | GPS Dental Training</title>
 
-    <!-- QR Scanner Library -->
-    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <!-- QR Scanner Library - loaded with defer to ensure DOM is ready -->
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" defer></script>
   </head>
 
   <body class="min-h-screen flex flex-col bg-[#F8F9FA]">
@@ -380,12 +380,22 @@ function formatTime(dateStr: string): string {
       let html5QrCode = null;
       let isScanning = false;
 
-      // Start/Stop QR Scanner
-      const startScannerBtn = document.getElementById('start-scanner-btn');
-      const scannerStatus = document.getElementById('scanner-status');
+      // Wait for DOM and Html5Qrcode library to be ready
+      function initScanner() {
+        const startScannerBtn = document.getElementById('start-scanner-btn');
+        const scannerStatus = document.getElementById('scanner-status');
 
-      if (startScannerBtn) {
+        if (!startScannerBtn) return;
+
         startScannerBtn.addEventListener('click', async () => {
+          // Check if Html5Qrcode library is loaded
+          if (typeof Html5Qrcode === 'undefined') {
+            scannerStatus.textContent = 'QR Scanner library is loading. Please wait and try again.';
+            scannerStatus.classList.remove('hidden');
+            scannerStatus.classList.add('text-yellow-600');
+            return;
+          }
+
           if (!isScanning) {
             try {
               html5QrCode = new Html5Qrcode("qr-reader");
@@ -399,127 +409,232 @@ function formatTime(dateStr: string): string {
               startScannerBtn.textContent = 'Stop Scanner';
               startScannerBtn.classList.remove('bg-[#0B52AC]');
               startScannerBtn.classList.add('bg-red-600');
+              scannerStatus.classList.add('hidden');
             } catch (err) {
               console.error('Failed to start scanner:', err);
-              scannerStatus.textContent = 'Failed to start camera. Please check permissions.';
+              let errorMessage = 'Failed to start camera.';
+              if (err.name === 'NotAllowedError') {
+                errorMessage = 'Camera permission denied. Please allow camera access.';
+              } else if (err.name === 'NotFoundError') {
+                errorMessage = 'No camera found on this device.';
+              } else if (err.name === 'NotReadableError') {
+                errorMessage = 'Camera is in use by another application.';
+              }
+              scannerStatus.textContent = errorMessage;
               scannerStatus.classList.remove('hidden');
               scannerStatus.classList.add('text-red-600');
             }
           } else {
-            await html5QrCode.stop();
+            try {
+              await html5QrCode.stop();
+            } catch (e) {
+              console.warn('Error stopping scanner:', e);
+            }
             isScanning = false;
             startScannerBtn.textContent = 'Start Scanner';
             startScannerBtn.classList.add('bg-[#0B52AC]');
             startScannerBtn.classList.remove('bg-red-600');
+            scannerStatus.classList.add('hidden');
           }
         });
       }
 
-      // Handle QR scan success
+      // Handle QR scan success - call the check-in API
       async function onScanSuccess(decodedText) {
-        // Parse QR code data - expecting ticket code or JSON with ticket info
-        let ticketCode = decodedText;
-        try {
-          const data = JSON.parse(decodedText);
-          ticketCode = data.ticket_code || data.code || decodedText;
-        } catch {
-          // Not JSON, use as-is
+        const scannerStatus = document.getElementById('scanner-status');
+
+        // Stop scanner to prevent multiple scans
+        if (html5QrCode && isScanning) {
+          try {
+            await html5QrCode.stop();
+            isScanning = false;
+            const startScannerBtn = document.getElementById('start-scanner-btn');
+            if (startScannerBtn) {
+              startScannerBtn.textContent = 'Start Scanner';
+              startScannerBtn.classList.add('bg-[#0B52AC]');
+              startScannerBtn.classList.remove('bg-red-600');
+            }
+          } catch (e) {
+            console.warn('Error stopping scanner:', e);
+          }
         }
 
-        // Find the ticket by code
-        const row = document.querySelector(`[data-ticket-id]`);
-        // In a real implementation, you'd call an API to check in by ticket code
-        console.log('Scanned ticket code:', ticketCode);
+        // Show processing status
+        scannerStatus.textContent = 'Processing...';
+        scannerStatus.classList.remove('hidden', 'text-red-600', 'text-green-600');
+        scannerStatus.classList.add('text-blue-600');
 
-        // Show status
-        scannerStatus.textContent = `Scanned: ${ticketCode}`;
-        scannerStatus.classList.remove('hidden');
-      }
-
-      // Search functionality
-      const searchInput = document.getElementById('search-input');
-      const searchResults = document.getElementById('search-results');
-      const attendeeRows = document.querySelectorAll('.attendee-row');
-
-      if (searchInput) {
-        searchInput.addEventListener('input', (e) => {
-          const query = e.target.value.toLowerCase();
-
-          attendeeRows.forEach(row => {
-            const name = row.querySelector('.font-medium')?.textContent?.toLowerCase() || '';
-            const email = row.querySelector('.text-gray-500')?.textContent?.toLowerCase() || '';
-            const code = row.querySelector('.font-mono')?.textContent?.toLowerCase() || '';
-
-            if (name.includes(query) || email.includes(query) || code.includes(query)) {
-              row.style.display = '';
-            } else {
-              row.style.display = 'none';
-            }
+        try {
+          // Call check-in API with QR data
+          const response = await fetch('/api/admin/attendance/check-in', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              qrData: decodedText,
+              checkInMethod: 'qr_scan'
+            })
           });
-        });
-      }
 
-      // Filter pending only
-      const filterPending = document.getElementById('filter-pending');
-      if (filterPending) {
-        filterPending.addEventListener('change', (e) => {
-          attendeeRows.forEach(row => {
-            if (e.target.checked && row.classList.contains('checked-in')) {
-              row.style.display = 'none';
-            } else {
-              row.style.display = '';
+          const result = await response.json();
+
+          if (result.success) {
+            // Show success modal
+            const successModal = document.getElementById('success-modal');
+            const modalAttendeeName = document.getElementById('modal-attendee-name');
+            const modalCreditsAwarded = document.getElementById('modal-credits-awarded');
+
+            if (modalAttendeeName) {
+              modalAttendeeName.textContent = result.data?.attendeeName || 'Attendee';
             }
-          });
-        });
-      }
-
-      // Check-in buttons
-      const checkInBtns = document.querySelectorAll('.check-in-btn');
-      const successModal = document.getElementById('success-modal');
-      const modalAttendeeName = document.getElementById('modal-attendee-name');
-      const modalCreditsAwarded = document.getElementById('modal-credits-awarded');
-      const modalCloseBtn = document.getElementById('modal-close-btn');
-
-      checkInBtns.forEach(btn => {
-        btn.addEventListener('click', async (e) => {
-          const ticketCode = e.target.dataset.ticketCode;
-          const attendeeName = e.target.dataset.attendeeName;
-
-          try {
-            const response = await fetch('/api/admin/attendance/check-in', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                ticketCode,
-                checkInMethod: 'manual'
-              })
-            });
-
-            const result = await response.json();
-
-            if (result.success) {
-              // Show success modal
-              modalAttendeeName.textContent = result.data?.attendeeName || attendeeName;
+            if (modalCreditsAwarded) {
               modalCreditsAwarded.textContent = result.data?.creditsAwarded
                 ? `${result.data.creditsAwarded} CE Credits awarded`
                 : '';
-              successModal.classList.remove('hidden');
-            } else {
-              alert(result.error || 'Failed to check in');
             }
-          } catch (err) {
-            console.error('Check-in error:', err);
-            alert('Failed to check in. Please try again.');
-          }
-        });
-      });
+            if (successModal) {
+              successModal.classList.remove('hidden');
+            }
 
-      // Close modal
-      if (modalCloseBtn) {
-        modalCloseBtn.addEventListener('click', () => {
-          successModal.classList.add('hidden');
-          window.location.reload(); // Refresh to update counts
+            scannerStatus.textContent = `✓ ${result.data?.attendeeName || 'Attendee'} checked in!`;
+            scannerStatus.classList.remove('text-blue-600');
+            scannerStatus.classList.add('text-green-600');
+          } else {
+            scannerStatus.textContent = result.error || 'Check-in failed';
+            scannerStatus.classList.remove('text-blue-600');
+            scannerStatus.classList.add('text-red-600');
+          }
+        } catch (err) {
+          console.error('Check-in error:', err);
+          scannerStatus.textContent = 'Network error. Please try again.';
+          scannerStatus.classList.remove('text-blue-600');
+          scannerStatus.classList.add('text-red-600');
+        }
+      }
+
+      // Initialize when DOM is ready
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initScanner);
+      } else {
+        initScanner();
+      }
+
+      // Initialize search and other functionality
+      function initAttendanceFeatures() {
+        // Search functionality
+        const searchInput = document.getElementById('search-input');
+        const attendeeRows = document.querySelectorAll('.attendee-row');
+
+        if (searchInput) {
+          searchInput.addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase();
+
+            attendeeRows.forEach(row => {
+              const name = row.querySelector('.font-medium')?.textContent?.toLowerCase() || '';
+              const email = row.querySelector('.text-gray-500')?.textContent?.toLowerCase() || '';
+              const code = row.querySelector('.font-mono')?.textContent?.toLowerCase() || '';
+
+              if (name.includes(query) || email.includes(query) || code.includes(query)) {
+                row.style.display = '';
+              } else {
+                row.style.display = 'none';
+              }
+            });
+          });
+        }
+
+        // Filter pending only
+        const filterPending = document.getElementById('filter-pending');
+        if (filterPending) {
+          filterPending.addEventListener('change', (e) => {
+            attendeeRows.forEach(row => {
+              if (e.target.checked && row.classList.contains('checked-in')) {
+                row.style.display = 'none';
+              } else {
+                row.style.display = '';
+              }
+            });
+          });
+        }
+
+        // Check-in buttons
+        const checkInBtns = document.querySelectorAll('.check-in-btn');
+        const successModal = document.getElementById('success-modal');
+        const modalAttendeeName = document.getElementById('modal-attendee-name');
+        const modalCreditsAwarded = document.getElementById('modal-credits-awarded');
+        const modalCloseBtn = document.getElementById('modal-close-btn');
+
+        checkInBtns.forEach(btn => {
+          btn.addEventListener('click', async (e) => {
+            const ticketCode = e.target.dataset.ticketCode;
+            const attendeeName = e.target.dataset.attendeeName;
+
+            // Disable button while processing
+            e.target.disabled = true;
+            e.target.textContent = 'Processing...';
+
+            try {
+              const response = await fetch('/api/admin/attendance/check-in', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  ticketCode,
+                  checkInMethod: 'manual'
+                })
+              });
+
+              const result = await response.json();
+
+              if (result.success) {
+                // Show success modal
+                if (modalAttendeeName) {
+                  modalAttendeeName.textContent = result.data?.attendeeName || attendeeName;
+                }
+                if (modalCreditsAwarded) {
+                  modalCreditsAwarded.textContent = result.data?.creditsAwarded
+                    ? `${result.data.creditsAwarded} CE Credits awarded`
+                    : '';
+                }
+                if (successModal) {
+                  successModal.classList.remove('hidden');
+                }
+              } else {
+                alert(result.error || 'Failed to check in');
+                e.target.disabled = false;
+                e.target.textContent = 'Check In';
+              }
+            } catch (err) {
+              console.error('Check-in error:', err);
+              alert('Failed to check in. Please try again.');
+              e.target.disabled = false;
+              e.target.textContent = 'Check In';
+            }
+          });
         });
+
+        // Close modal
+        if (modalCloseBtn) {
+          modalCloseBtn.addEventListener('click', () => {
+            successModal.classList.add('hidden');
+            window.location.reload(); // Refresh to update counts
+          });
+        }
+
+        // Close modal on backdrop click
+        if (successModal) {
+          successModal.addEventListener('click', (e) => {
+            if (e.target === successModal) {
+              successModal.classList.add('hidden');
+              window.location.reload();
+            }
+          });
+        }
+      }
+
+      // Initialize everything when DOM is ready
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initAttendanceFeatures);
+      } else {
+        initAttendanceFeatures();
       }
     </script>
   </body>

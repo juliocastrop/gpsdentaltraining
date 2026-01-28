@@ -47,6 +47,7 @@ export const PUT: APIRoute = async ({ params, request }) => {
     }
 
     const body = await request.json();
+    console.log('PUT received body keys:', Object.keys(body));
 
     // Remove read-only fields and fields that don't exist in DB
     const {
@@ -80,10 +81,17 @@ export const PUT: APIRoute = async ({ params, request }) => {
       else if (key === 'page_orientation') {
         cleanedData[key] = value === 'landscape' ? 'L' : value === 'portrait' ? 'P' : value;
       }
+      // Convert page_format to uppercase (DB uses LETTER, A4)
+      else if (key === 'page_format' && typeof value === 'string') {
+        cleanedData[key] = value.toUpperCase();
+      }
       else {
         cleanedData[key] = value;
       }
     }
+
+    console.log('PUT cleanedData keys:', Object.keys(cleanedData));
+    console.log('PUT cleanedData:', JSON.stringify(cleanedData, null, 2));
 
     const template = await updateCertificateTemplate(id, cleanedData);
 

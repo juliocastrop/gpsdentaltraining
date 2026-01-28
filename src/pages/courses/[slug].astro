@@ -294,10 +294,48 @@ const templateProps = {
   url: Astro.url,
   isPreview,
 };
+
+// Generate meta description from cleanDescription
+const metaDescription = cleanDescription
+  ? cleanDescription.replace(/<[^>]*>/g, '').substring(0, 160)
+  : `${cleanTitle} - GPS Dental Training`;
 ---
 
-{layoutTemplate === 'classic' ? (
-  <ClassicCourseDetail {...templateProps} />
-) : (
-  <ModernCourseDetail {...templateProps} />
-)}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content={metaDescription} />
+
+    <link rel="icon" href={siteSettings.favicon_url} />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={Astro.url.href} />
+    <meta property="og:title" content={`${cleanTitle} | GPS Dental Training`} />
+    <meta property="og:description" content={metaDescription} />
+    <meta property="og:image" content={event.featured_image_url || '/og-default.jpg'} />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={`${cleanTitle} | GPS Dental Training`} />
+    <meta name="twitter:description" content={metaDescription} />
+    <meta name="twitter:image" content={event.featured_image_url || '/og-default.jpg'} />
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+
+    <title>{cleanTitle} | GPS Dental Training</title>
+  </head>
+
+  <body class="min-h-screen flex flex-col bg-white">
+    {layoutTemplate === 'classic' ? (
+      <ClassicCourseDetail {...templateProps} />
+    ) : (
+      <ModernCourseDetail {...templateProps} />
+    )}
+  </body>
+</html>

@@ -1,6 +1,13 @@
 /**
  * Certificate PDF Generator - GPS Dental Training
- * Generates PDF certificates for courses and seminars
+ * This file now serves as a compatibility layer and exports from the new template-based generator
+ *
+ * For new code, import directly from TemplateBasedGenerator.tsx:
+ * - generateCourseCertificateWithTemplate
+ * - generateSeminarCertificateWithTemplate
+ *
+ * The legacy functions below are maintained for backward compatibility but
+ * will use hardcoded default values instead of database templates.
  */
 
 import React from 'react';
@@ -8,6 +15,16 @@ import { renderToBuffer } from '@react-pdf/renderer';
 import QRCode from 'qrcode';
 import { CourseCertificateTemplate, type CourseCertificateData } from './CourseCertificateTemplate';
 import { SeminarCertificateTemplate, type SeminarCertificateData } from './SeminarCertificateTemplate';
+
+// Re-export new template-based functions
+export {
+  generateCourseCertificateWithTemplate,
+  generateSeminarCertificateWithTemplate,
+  formatSeminarPeriod,
+  generateCertificateFilename,
+  type CourseCertificateInput,
+  type SeminarCertificateInput,
+} from './TemplateBasedGenerator';
 
 const BASE_URL = import.meta.env.PUBLIC_SITE_URL || 'https://gpsdentaltraining.com';
 
@@ -31,7 +48,8 @@ async function generateVerificationQR(certificateCode: string): Promise<string> 
 }
 
 /**
- * Generate a course certificate PDF
+ * Generate a course certificate PDF (LEGACY - uses static template)
+ * @deprecated Use generateCourseCertificateWithTemplate instead
  */
 export async function generateCourseCertificatePDF(data: {
   attendeeName: string;
@@ -64,7 +82,8 @@ export async function generateCourseCertificatePDF(data: {
 }
 
 /**
- * Generate a seminar certificate PDF
+ * Generate a seminar certificate PDF (LEGACY - uses static template)
+ * @deprecated Use generateSeminarCertificateWithTemplate instead
  */
 export async function generateSeminarCertificatePDF(data: {
   attendeeName: string;
@@ -98,36 +117,4 @@ export async function generateSeminarCertificatePDF(data: {
   const pdfBuffer = await renderToBuffer(element as unknown as Parameters<typeof renderToBuffer>[0]);
 
   return pdfBuffer;
-}
-
-/**
- * Format period string for seminar certificates
- * @param period 'first_half' | 'second_half'
- * @param year number
- */
-export function formatSeminarPeriod(period: 'first_half' | 'second_half', year: number): string {
-  if (period === 'first_half') {
-    return `January - June ${year}`;
-  } else {
-    return `July - December ${year}`;
-  }
-}
-
-/**
- * Generate certificate filename
- */
-export function generateCertificateFilename(
-  type: 'course' | 'seminar',
-  attendeeName: string,
-  code: string
-): string {
-  // Sanitize attendee name for filename
-  const safeName = attendeeName
-    .replace(/[^a-zA-Z0-9\s]/g, '')
-    .replace(/\s+/g, '_')
-    .toLowerCase();
-
-  const timestamp = Date.now().toString(36);
-
-  return `${type}_certificate_${safeName}_${code}_${timestamp}.pdf`;
 }

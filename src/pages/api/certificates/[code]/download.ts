@@ -2,18 +2,19 @@ import type { APIRoute } from 'astro';
 import {
   getCertificateByCode,
   getEventById,
+  getDefaultCertificateTemplate,
 } from '../../../../lib/supabase/queries';
 import { supabaseAdmin } from '../../../../lib/supabase/client';
 import {
-  generateCourseCertificatePDF,
-  generateSeminarCertificatePDF,
+  generateCourseCertificateWithTemplate,
+  generateSeminarCertificateWithTemplate,
   formatSeminarPeriod,
-} from '../../../../lib/certificates/generator';
+} from '../../../../lib/certificates/TemplateBasedGenerator';
 
 /**
  * GET /api/certificates/[code]/download
  * Download certificate PDF by certificate code
- * Generates PDF on-the-fly if not cached
+ * Generates PDF on-the-fly using configurable templates
  */
 export const GET: APIRoute = async ({ params }) => {
   try {
@@ -46,23 +47,39 @@ export const GET: APIRoute = async ({ params }) => {
       return Response.redirect(certificate.pdf_url, 302);
     }
 
-    // Generate PDF on-the-fly
+    // Determine certificate type
     const isSeminar = certificate.certificate_code?.startsWith('GPS-SEM-');
+    const certificateType = isSeminar ? 'seminar' : 'course';
+
+    // Get default template for this certificate type
+    const template = await getDefaultCertificateTemplate(certificateType);
+    if (!template) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: `No default template found for ${certificateType} certificates`,
+      }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
 
     let pdfBuffer: Buffer;
     let filename: string;
 
     if (isSeminar) {
-      // Parse seminar data from certificate code (format: GPS-SEM-YYYY-...)
-      const codeMatch = certificate.certificate_code?.match(/GPS-SEM-(\d{4})/);
-      const year = codeMatch ? parseInt(codeMatch[1], 10) : new Date().getFullYear();
+      // Parse seminar data from certificate code (format: GPS-SEM-YYH1-XXXXXX or GPS-SEM-YYH2-XXXXXX)
+      const codeMatch = certificate.certificate_code?.match(/GPS-SEM-(\d{2})(H[12])/);
+      const year = codeMatch ? 2000 + parseInt(codeMatch[1], 10) : new Date().getFullYear();
+      const period: 'first_half' | 'second_half' = codeMatch?.[2] === 'H2' ? 'second_half' : 'first_half';
 
-      // Determine period based on generation date
-      const generatedDate = new Date(certificate.generated_at);
-      const period = generatedDate.getMonth() < 6 ? 'first_half' : 'second_half';
+      // Get credits from attendance records
+      const { data: attendanceData } = await supabaseAdmin
+        .from('seminar_attendance')
+        .select('credits_awarded')
+        .eq('user_id', certificate.user_id)
+        .eq('seminar_id', certificate.event_id);
 
-      // Default credits for seminar (will be recalculated from attendance)
-      const credits = 0;
+      const credits = attendanceData?.reduce((sum, att) => sum + (att.credits_awarded || 0), 0) || 0;
 
       // Get attendance count
       const { count: sessionsAttended } = await supabaseAdmin
@@ -71,15 +88,20 @@ export const GET: APIRoute = async ({ params }) => {
         .eq('user_id', certificate.user_id)
         .eq('seminar_id', certificate.event_id);
 
-      pdfBuffer = await generateSeminarCertificatePDF({
-        attendeeName: certificate.attendee_name,
-        period: formatSeminarPeriod(period as 'first_half' | 'second_half', year),
-        year,
-        issueDate: certificate.generated_at || new Date().toISOString(),
-        creditsEarned: credits,
-        sessionsAttended: sessionsAttended || 0,
-        certificateCode: certificate.certificate_code,
-      });
+      pdfBuffer = await generateSeminarCertificateWithTemplate(
+        {
+          attendeeName: certificate.attendee_name,
+          programPeriod: formatSeminarPeriod(period, year),
+          sessionsAttended: sessionsAttended || 0,
+          totalSessions: 10,
+          creditsEarned: credits,
+          issueDate: certificate.generated_at || new Date().toISOString(),
+          certificateCode: certificate.certificate_code,
+          venue: template.location_value || undefined,
+          courseMethod: template.course_method_value || 'In Person / Live',
+        },
+        template
+      );
 
       filename = `GPS_Seminar_Certificate_${certificate.attendee_name.replace(/\s+/g, '_')}.pdf`;
     } else {
@@ -95,17 +117,39 @@ export const GET: APIRoute = async ({ params }) => {
         });
       }
 
-      pdfBuffer = await generateCourseCertificatePDF({
-        attendeeName: certificate.attendee_name,
-        eventTitle: event.title,
-        eventDate: event.start_date,
-        eventEndDate: event.end_date ?? undefined,
-        venue: event.venue ?? undefined,
-        address: event.address ?? undefined,
-        ceCredits: event.ce_credits ?? undefined,
-        certificateCode: certificate.certificate_code,
-        courseMethod: 'In Person',
-      });
+      // Format event date
+      const startDate = new Date(event.start_date);
+      const endDate = event.end_date ? new Date(event.end_date) : null;
+
+      let formattedDate: string;
+      if (endDate && endDate.getTime() !== startDate.getTime()) {
+        const options: Intl.DateTimeFormatOptions = { month: 'long', day: 'numeric' };
+        const yearOptions: Intl.DateTimeFormatOptions = { year: 'numeric' };
+        formattedDate = `${startDate.toLocaleDateString('en-US', options)} - ${endDate.toLocaleDateString('en-US', options)}, ${endDate.toLocaleDateString('en-US', yearOptions)}`;
+      } else {
+        formattedDate = startDate.toLocaleDateString('en-US', {
+          month: 'long',
+          day: 'numeric',
+          year: 'numeric',
+        });
+      }
+
+      pdfBuffer = await generateCourseCertificateWithTemplate(
+        {
+          attendeeName: certificate.attendee_name,
+          eventTitle: event.title,
+          eventSubtitle: event.excerpt ?? undefined, // Use excerpt as subtitle
+          eventDate: formattedDate,
+          eventEndDate: event.end_date ?? undefined,
+          venue: event.venue ?? template.location_value ?? undefined,
+          address: event.address ?? undefined,
+          ceCredits: event.ce_credits ?? undefined,
+          certificateCode: certificate.certificate_code,
+          courseMethod: template.course_method_value || 'In Person',
+          instructor: template.instructor_name || undefined,
+        },
+        template
+      );
 
       filename = `GPS_Course_Certificate_${certificate.attendee_name.replace(/\s+/g, '_')}.pdf`;
     }
