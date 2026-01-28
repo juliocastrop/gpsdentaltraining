@@ -189,11 +189,13 @@ export default function EventsList({ currentPath, user, events, loading = false 
       user={user}
       actions={
         <a
-          href="https://strapi-admin.gpsdentaltraining.com/admin"
-          target="_blank"
-          className="px-4 py-2 bg-[#0B52AC] text-white font-medium rounded-lg hover:bg-[#0C2044] transition-colors text-sm"
+          href="/admin/events/new"
+          className="px-4 py-2 bg-[#0B52AC] text-white font-medium rounded-lg hover:bg-[#0C2044] transition-colors text-sm inline-flex items-center gap-2"
         >
-          Open Strapi CMS
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+          Create Event
         </a>
       }
     >

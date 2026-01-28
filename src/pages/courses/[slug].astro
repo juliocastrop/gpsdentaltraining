@@ -17,6 +17,7 @@ import ModernCourseDetail from '../../components/templates/courses/ModernCourseD
 import ClassicCourseDetail from '../../components/templates/courses/ClassicCourseDetail.astro';
 
 const { slug } = Astro.params;
+const isPreview = Astro.url.searchParams.get('preview') === 'true';
 
 if (!slug) {
   return Astro.redirect('/courses');
@@ -28,7 +29,7 @@ let eventId: string;
 
 // Try Strapi first, then fall back to Supabase
 try {
-  const strapiEvent = await getEventBySlug(slug);
+  const strapiEvent = !isPreview ? await getEventBySlug(slug) : null;
 
   if (strapiEvent) {
     // Transform Strapi event to match expected format
@@ -65,7 +66,7 @@ try {
 
     // Get Supabase event ID for transactional data (tickets, availability)
     try {
-      const supabaseEvent = await getSupabaseEventBySlug(slug);
+      const supabaseEvent = await getSupabaseEventBySlug(slug, { preview: isPreview });
       eventId = supabaseEvent?.id || strapiEvent.id.toString();
       // Merge fields from Supabase that are managed via admin panel
       if (supabaseEvent?.layout_template) {
@@ -82,7 +83,7 @@ try {
     }
   } else {
     // Fall back to Supabase
-    event = await getEventWithSpeakers(slug);
+    event = await getEventWithSpeakers(slug, { preview: isPreview });
     eventId = event.id;
   }
 
@@ -291,6 +292,7 @@ const templateProps = {
   isSoldOut,
   dayCount,
   url: Astro.url,
+  isPreview,
 };
 ---
 

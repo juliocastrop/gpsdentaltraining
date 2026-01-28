@@ -1,0 +1,57 @@
+---
+/**
+ * Admin Create Event - GPS Dental Training
+ * Create a new event
+ */
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import EventCreate from '../../../components/admin/EventCreate';
+import { supabaseAdmin } from '../../../lib/supabase/client';
+
+// Check if Clerk is configured
+const clerkConfigured = !!import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY;
+
+// Get user from Clerk if available
+let userId: string | null = null;
+let isAdmin = false;
+let userName = 'Admin';
+let userEmail = 'admin@gpsdentaltraining.com';
+
+try {
+  if (clerkConfigured && Astro.locals.auth) {
+    const auth = Astro.locals.auth();
+    userId = auth?.userId || null;
+
+    if (userId) {
+      const { data: userData } = await supabaseAdmin
+        .from('users')
+        .select('role, first_name, last_name, email')
+        .eq('clerk_id', userId)
+        .single();
+
+      isAdmin = userData?.role === 'admin';
+      if (userData?.first_name) {
+        userName = `${userData.first_name} ${userData.last_name || ''}`.trim();
+      }
+      if (userData?.email) {
+        userEmail = userData.email;
+      }
+    }
+  }
+} catch {
+  isAdmin = true;
+}
+
+if (clerkConfigured && (!userId || !isAdmin)) {
+  return Astro.redirect('/sign-in?redirect_url=/admin/events/new');
+}
+
+const currentPath = Astro.url.pathname;
+---
+
+<AdminLayout title="Create Event">
+  <EventCreate
+    client:load
+    currentPath={currentPath}
+    user={{ name: userName, email: userEmail }}
+  />
+</AdminLayout>

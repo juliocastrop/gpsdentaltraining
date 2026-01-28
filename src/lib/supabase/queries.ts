@@ -122,26 +122,34 @@ export async function getFeaturedEvent(): Promise<EventWithSpeakers | null> {
   } as EventWithSpeakers;
 }
 
-export async function getEventBySlug(slug: string) {
-  const { data, error } = await supabaseAdmin
+export async function getEventBySlug(slug: string, { preview = false }: { preview?: boolean } = {}) {
+  let query = supabaseAdmin
     .from('events')
     .select('*')
-    .eq('slug', slug)
-    .eq('status', 'published')
-    .single();
+    .eq('slug', slug);
+
+  if (!preview) {
+    query = query.eq('status', 'published');
+  }
+
+  const { data, error } = await query.single();
 
   if (error) throw error;
   return data as Event;
 }
 
-export async function getEventWithSpeakers(slug: string): Promise<EventWithSpeakers> {
+export async function getEventWithSpeakers(slug: string, { preview = false }: { preview?: boolean } = {}): Promise<EventWithSpeakers> {
   // Get the event
-  const { data: event, error: eventError } = await supabaseAdmin
+  let query = supabaseAdmin
     .from('events')
     .select('*')
-    .eq('slug', slug)
-    .eq('status', 'published')
-    .single();
+    .eq('slug', slug);
+
+  if (!preview) {
+    query = query.eq('status', 'published');
+  }
+
+  const { data: event, error: eventError } = await query.single();
 
   if (eventError) throw eventError;
 
