@@ -1,0 +1,811 @@
+---
+/**
+ * Admin Certificate Template Editor
+ * Full visual editor for certificate template customization
+ */
+import '../../../../styles/global.css';
+import { getSiteSettings } from '../../../../lib/data/site-settings-loader';
+const siteSettings = await getSiteSettings();
+import Navbar from '../../../../components/layout/Navbar';
+import { getCertificateTemplateById } from '../../../../lib/supabase/queries';
+import type { CertificateTemplate } from '../../../../types/database';
+
+// Check if user is admin
+const clerkConfigured = !!process.env.PUBLIC_CLERK_PUBLISHABLE_KEY;
+let isAdmin = false;
+
+if (clerkConfigured && Astro.locals.auth) {
+  try {
+    const auth = Astro.locals.auth();
+    isAdmin = !!auth?.userId;
+  } catch {
+    // Clerk not available
+  }
+}
+
+if (!isAdmin && clerkConfigured) {
+  return Astro.redirect('/sign-in?redirect_url=/admin/certificate-templates');
+}
+
+// Get template ID from URL
+const { id } = Astro.params;
+
+if (!id) {
+  return Astro.redirect('/admin/certificate-templates');
+}
+
+// Fetch template
+let template: CertificateTemplate | null = null;
+try {
+  template = await getCertificateTemplateById(id);
+} catch (error) {
+  console.error('Error fetching template:', error);
+}
+
+if (!template) {
+  return Astro.redirect('/admin/certificate-templates?error=not_found');
+}
+
+const isSeminar = template.template_type === 'seminar';
+---
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <link rel="icon" href={siteSettings.favicon_url} />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+    <title>Edit {template.name} | GPS Admin</title>
+  </head>
+
+  <body class="min-h-screen flex flex-col bg-gray-100">
+    <Navbar logo={siteSettings.logo_url} transparent={false} client:load />
+
+    <div class="h-20"></div>
+
+    <main class="flex-1 py-8">
+      <div class="container mx-auto px-4 lg:px-8 max-w-7xl">
+        <!-- Header -->
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-8">
+          <div>
+            <nav class="flex items-center gap-2 text-sm text-gray-500 mb-2">
+              <a href="/admin" class="hover:text-[#0B52AC] transition-colors">Admin</a>
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+              </svg>
+              <a href="/admin/certificate-templates" class="hover:text-[#0B52AC] transition-colors">Certificate Templates</a>
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+              </svg>
+              <span class="text-[#0C2044] font-medium">Edit</span>
+            </nav>
+            <h1 class="text-3xl font-bold text-[#0C2044]">Edit: {template.name}</h1>
+            <p class="text-gray-600 mt-1">
+              {isSeminar ? 'Monthly Seminar' : 'Course'} Certificate Template
+              {template.is_default && <span class="ml-2 px-2 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded-full">Default</span>}
+            </p>
+          </div>
+          <div class="flex gap-3">
+            <button
+              id="previewBtn"
+              class="px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-colors inline-flex items-center gap-2"
+            >
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+              </svg>
+              Preview
+            </button>
+            <button
+              id="saveBtn"
+              class="px-5 py-2 bg-[#0B52AC] text-white font-semibold rounded-lg hover:bg-[#0C2044] transition-colors inline-flex items-center gap-2"
+            >
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+              </svg>
+              Save Changes
+            </button>
+          </div>
+        </div>
+
+        <!-- Success/Error Messages -->
+        <div id="messageArea" class="hidden mb-6 px-4 py-3 rounded-lg"></div>
+
+        <!-- Editor Grid -->
+        <div class="grid lg:grid-cols-3 gap-8">
+          <!-- Settings Panel (2 columns) -->
+          <div class="lg:col-span-2 space-y-6">
+            <!-- Basic Info -->
+            <div class="bg-white rounded-xl shadow-sm p-6">
+              <h2 class="text-lg font-bold text-[#0C2044] mb-4 flex items-center gap-2">
+                <svg class="w-5 h-5 text-[#0B52AC]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                Basic Information
+              </h2>
+              <div class="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Template Name</label>
+                  <input
+                    type="text"
+                    name="name"
+                    value={template.name}
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC]/20 focus:border-[#0B52AC] outline-none"
+                  />
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">URL Slug</label>
+                  <input
+                    type="text"
+                    name="slug"
+                    value={template.slug}
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC]/20 focus:border-[#0B52AC] outline-none font-mono text-sm"
+                  />
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Page Orientation</label>
+                  <select
+                    name="page_orientation"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC]/20 focus:border-[#0B52AC] outline-none"
+                  >
+                    <option value="landscape" selected={template.page_orientation === 'landscape'}>Landscape</option>
+                    <option value="portrait" selected={template.page_orientation === 'portrait'}>Portrait</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Page Format</label>
+                  <select
+                    name="page_format"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC]/20 focus:border-[#0B52AC] outline-none"
+                  >
+                    <option value="letter" selected={template.page_format === 'letter'}>Letter (8.5" x 11")</option>
+                    <option value="a4" selected={template.page_format === 'a4'}>A4</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <!-- Header Section -->
+            <div class="bg-white rounded-xl shadow-sm p-6">
+              <h2 class="text-lg font-bold text-[#0C2044] mb-4 flex items-center gap-2">
+                <svg class="w-5 h-5 text-[#0B52AC]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5z"/>
+                </svg>
+                Header Section
+              </h2>
+              <div class="grid md:grid-cols-2 gap-4">
+                <div class="md:col-span-2">
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Logo URL</label>
+                  <input
+                    type="url"
+                    name="logo_url"
+                    value={template.logo_url || ''}
+                    placeholder="https://..."
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC]/20 focus:border-[#0B52AC] outline-none"
+                  />
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Logo Width (px)</label>
+                  <input
+                    type="number"
+                    name="logo_width"
+                    value={template.logo_width}
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC]/20 focus:border-[#0B52AC] outline-none"
+                  />
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Logo Height (px)</label>
+                  <input
+                    type="number"
+                    name="logo_height"
+                    value={template.logo_height}
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC]/20 focus:border-[#0B52AC] outline-none"
+                  />
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Header Title</label>
+                  <input
+                    type="text"
+                    name="header_title"
+                    value={template.header_title}
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC]/20 focus:border-[#0B52AC] outline-none"
+                  />
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Header Subtitle</label>
+                  <input
+                    type="text"
+                    name="header_subtitle"
+                    value={template.header_subtitle}
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC]/20 focus:border-[#0B52AC] outline-none"
+                  />
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Header Background Color</label>
+                  <div class="flex gap-2">
+                    <input
+                      type="color"
+                      name="header_bg_color"
+                      value={template.header_bg_color}
+                      class="w-12 h-10 rounded border border-gray-300 cursor-pointer"
+                    />
+                    <input
+                      type="text"
+                      name="header_bg_color_text"
+                      value={template.header_bg_color}
+                      class="flex-1 px-3 py-2 border border-gray-300 rounded-lg font-mono text-sm"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Header Text Color</label>
+                  <div class="flex gap-2">
+                    <input
+                      type="color"
+                      name="header_text_color"
+                      value={template.header_text_color}
+                      class="w-12 h-10 rounded border border-gray-300 cursor-pointer"
+                    />
+                    <input
+                      type="text"
+                      name="header_text_color_text"
+                      value={template.header_text_color}
+                      class="flex-1 px-3 py-2 border border-gray-300 rounded-lg font-mono text-sm"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Title Font Size</label>
+                  <input
+                    type="number"
+                    name="header_title_size"
+                    value={template.header_title_size}
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC]/20 focus:border-[#0B52AC] outline-none"
+                  />
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Subtitle Font Size</label>
+                  <input
+                    type="number"
+                    name="header_subtitle_size"
+                    value={template.header_subtitle_size}
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC]/20 focus:border-[#0B52AC] outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <!-- Main Content Section -->
+            <div class="bg-white rounded-xl shadow-sm p-6">
+              <h2 class="text-lg font-bold text-[#0C2044] mb-4 flex items-center gap-2">
+                <svg class="w-5 h-5 text-[#0B52AC]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+                Main Content
+              </h2>
+              <div class="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Main Title</label>
+                  <input
+                    type="text"
+                    name="main_title"
+                    value={template.main_title}
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC]/20 focus:border-[#0B52AC] outline-none"
+                  />
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Main Title Size</label>
+                  <input
+                    type="number"
+                    name="main_title_size"
+                    value={template.main_title_size}
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC]/20 focus:border-[#0B52AC] outline-none"
+                  />
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Subtitle</label>
+                  <input
+                    type="text"
+                    name="main_subtitle"
+                    value={template.main_subtitle}
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC]/20 focus:border-[#0B52AC] outline-none"
+                  />
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Subtitle Size</label>
+                  <input
+                    type="number"
+                    name="main_subtitle_size"
+                    value={template.main_subtitle_size}
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC]/20 focus:border-[#0B52AC] outline-none"
+                  />
+                </div>
+                <div class="md:col-span-2">
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Description Text</label>
+                  <textarea
+                    name="description_text"
+                    rows="3"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC]/20 focus:border-[#0B52AC] outline-none resize-none"
+                  >{template.description_text}</textarea>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Attendee Name Size</label>
+                  <input
+                    type="number"
+                    name="attendee_name_size"
+                    value={template.attendee_name_size}
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC]/20 focus:border-[#0B52AC] outline-none"
+                  />
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Event Title Size</label>
+                  <input
+                    type="number"
+                    name="event_title_size"
+                    value={template.event_title_size}
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC]/20 focus:border-[#0B52AC] outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <!-- Colors Section -->
+            <div class="bg-white rounded-xl shadow-sm p-6">
+              <h2 class="text-lg font-bold text-[#0C2044] mb-4 flex items-center gap-2">
+                <svg class="w-5 h-5 text-[#0B52AC]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/>
+                </svg>
+                Color Scheme
+              </h2>
+              <div class="grid md:grid-cols-3 gap-4">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Primary Color</label>
+                  <div class="flex gap-2">
+                    <input type="color" name="primary_color" value={template.primary_color} class="w-12 h-10 rounded border border-gray-300 cursor-pointer" />
+                    <input type="text" name="primary_color_text" value={template.primary_color} class="flex-1 px-3 py-2 border border-gray-300 rounded-lg font-mono text-sm" />
+                  </div>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Secondary Color</label>
+                  <div class="flex gap-2">
+                    <input type="color" name="secondary_color" value={template.secondary_color} class="w-12 h-10 rounded border border-gray-300 cursor-pointer" />
+                    <input type="text" name="secondary_color_text" value={template.secondary_color} class="flex-1 px-3 py-2 border border-gray-300 rounded-lg font-mono text-sm" />
+                  </div>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Accent Color</label>
+                  <div class="flex gap-2">
+                    <input type="color" name="accent_color" value={template.accent_color} class="w-12 h-10 rounded border border-gray-300 cursor-pointer" />
+                    <input type="text" name="accent_color_text" value={template.accent_color} class="flex-1 px-3 py-2 border border-gray-300 rounded-lg font-mono text-sm" />
+                  </div>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Attendee Name Color</label>
+                  <div class="flex gap-2">
+                    <input type="color" name="attendee_name_color" value={template.attendee_name_color} class="w-12 h-10 rounded border border-gray-300 cursor-pointer" />
+                    <input type="text" name="attendee_name_color_text" value={template.attendee_name_color} class="flex-1 px-3 py-2 border border-gray-300 rounded-lg font-mono text-sm" />
+                  </div>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Event Title Color</label>
+                  <div class="flex gap-2">
+                    <input type="color" name="event_title_color" value={template.event_title_color} class="w-12 h-10 rounded border border-gray-300 cursor-pointer" />
+                    <input type="text" name="event_title_color_text" value={template.event_title_color} class="flex-1 px-3 py-2 border border-gray-300 rounded-lg font-mono text-sm" />
+                  </div>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Date Color</label>
+                  <div class="flex gap-2">
+                    <input type="color" name="date_color" value={template.date_color} class="w-12 h-10 rounded border border-gray-300 cursor-pointer" />
+                    <input type="text" name="date_color_text" value={template.date_color} class="flex-1 px-3 py-2 border border-gray-300 rounded-lg font-mono text-sm" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Labels Section -->
+            <div class="bg-white rounded-xl shadow-sm p-6">
+              <h2 class="text-lg font-bold text-[#0C2044] mb-4 flex items-center gap-2">
+                <svg class="w-5 h-5 text-[#0B52AC]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
+                </svg>
+                Labels & Text
+              </h2>
+              <div class="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Course Title Label</label>
+                  <input type="text" name="course_title_label" value={template.course_title_label} class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC]/20 focus:border-[#0B52AC] outline-none" />
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Course Method Label</label>
+                  <input type="text" name="course_method_label" value={template.course_method_label} class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC]/20 focus:border-[#0B52AC] outline-none" />
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Location Label</label>
+                  <input type="text" name="location_label" value={template.location_label} class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC]/20 focus:border-[#0B52AC] outline-none" />
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Date Label</label>
+                  <input type="text" name="date_label" value={template.date_label} class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC]/20 focus:border-[#0B52AC] outline-none" />
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">CE Credits Label</label>
+                  <input type="text" name="ce_credits_label" value={template.ce_credits_label} class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC]/20 focus:border-[#0B52AC] outline-none" />
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Code Label</label>
+                  <input type="text" name="code_label" value={template.code_label} class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC]/20 focus:border-[#0B52AC] outline-none" />
+                </div>
+                {isSeminar && (
+                  <>
+                    <div>
+                      <label class="block text-sm font-medium text-gray-700 mb-1">Seminar Period Label</label>
+                      <input type="text" name="seminar_period_label" value={template.seminar_period_label} class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC]/20 focus:border-[#0B52AC] outline-none" />
+                    </div>
+                    <div>
+                      <label class="block text-sm font-medium text-gray-700 mb-1">Sessions Label</label>
+                      <input type="text" name="seminar_sessions_label" value={template.seminar_sessions_label} class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC]/20 focus:border-[#0B52AC] outline-none" />
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <!-- Signature Section -->
+            <div class="bg-white rounded-xl shadow-sm p-6">
+              <h2 class="text-lg font-bold text-[#0C2044] mb-4 flex items-center gap-2">
+                <svg class="w-5 h-5 text-[#0B52AC]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                </svg>
+                Signature & Instructor
+              </h2>
+              <div class="grid md:grid-cols-2 gap-4">
+                <div class="flex items-center gap-3">
+                  <input type="checkbox" name="show_signature" id="show_signature" checked={template.show_signature} class="w-5 h-5 rounded border-gray-300 text-[#0B52AC] focus:ring-[#0B52AC]" />
+                  <label for="show_signature" class="text-sm font-medium text-gray-700">Show Signature Section</label>
+                </div>
+                <div></div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Instructor Label</label>
+                  <input type="text" name="instructor_label" value={template.instructor_label} class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC]/20 focus:border-[#0B52AC] outline-none" />
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Instructor Name</label>
+                  <input type="text" name="instructor_name" value={template.instructor_name} class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC]/20 focus:border-[#0B52AC] outline-none" />
+                </div>
+                <div class="md:col-span-2">
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Signature Image URL</label>
+                  <input type="url" name="signature_image_url" value={template.signature_image_url || ''} placeholder="https://..." class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC]/20 focus:border-[#0B52AC] outline-none" />
+                </div>
+              </div>
+            </div>
+
+            <!-- PACE Section -->
+            <div class="bg-white rounded-xl shadow-sm p-6">
+              <h2 class="text-lg font-bold text-[#0C2044] mb-4 flex items-center gap-2">
+                <svg class="w-5 h-5 text-[#0B52AC]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/>
+                </svg>
+                PACE Accreditation
+              </h2>
+              <div class="grid md:grid-cols-2 gap-4">
+                <div class="flex items-center gap-3">
+                  <input type="checkbox" name="show_pace" id="show_pace" checked={template.show_pace} class="w-5 h-5 rounded border-gray-300 text-[#0B52AC] focus:ring-[#0B52AC]" />
+                  <label for="show_pace" class="text-sm font-medium text-gray-700">Show PACE Section</label>
+                </div>
+                <div></div>
+                <div class="md:col-span-2">
+                  <label class="block text-sm font-medium text-gray-700 mb-1">PACE Logo URL</label>
+                  <input type="url" name="pace_logo_url" value={template.pace_logo_url || ''} placeholder="https://..." class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC]/20 focus:border-[#0B52AC] outline-none" />
+                </div>
+                <div class="md:col-span-2">
+                  <label class="block text-sm font-medium text-gray-700 mb-1">PACE Text</label>
+                  <textarea name="pace_text" rows="2" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC]/20 focus:border-[#0B52AC] outline-none resize-none">{template.pace_text}</textarea>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Program Provider</label>
+                  <input type="text" name="program_provider" value={template.program_provider} class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC]/20 focus:border-[#0B52AC] outline-none" />
+                </div>
+              </div>
+            </div>
+
+            <!-- QR Code Section -->
+            <div class="bg-white rounded-xl shadow-sm p-6">
+              <h2 class="text-lg font-bold text-[#0C2044] mb-4 flex items-center gap-2">
+                <svg class="w-5 h-5 text-[#0B52AC]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/>
+                </svg>
+                QR Code
+              </h2>
+              <div class="grid md:grid-cols-2 gap-4">
+                <div class="flex items-center gap-3">
+                  <input type="checkbox" name="enable_qr_code" id="enable_qr_code" checked={template.enable_qr_code} class="w-5 h-5 rounded border-gray-300 text-[#0B52AC] focus:ring-[#0B52AC]" />
+                  <label for="enable_qr_code" class="text-sm font-medium text-gray-700">Enable QR Code</label>
+                </div>
+                <div></div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">QR Code Position</label>
+                  <select name="qr_code_position" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC]/20 focus:border-[#0B52AC] outline-none">
+                    <option value="bottom_right" selected={template.qr_code_position === 'bottom_right'}>Bottom Right</option>
+                    <option value="bottom_left" selected={template.qr_code_position === 'bottom_left'}>Bottom Left</option>
+                    <option value="bottom_center" selected={template.qr_code_position === 'bottom_center'}>Bottom Center</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">QR Code Size (px)</label>
+                  <input type="number" name="qr_code_size" value={template.qr_code_size} class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC]/20 focus:border-[#0B52AC] outline-none" />
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">QR Code Label</label>
+                  <input type="text" name="qr_code_label" value={template.qr_code_label} class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC]/20 focus:border-[#0B52AC] outline-none" />
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Verification URL Base</label>
+                  <input type="url" name="verification_url_base" value={template.verification_url_base} class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC]/20 focus:border-[#0B52AC] outline-none" />
+                </div>
+              </div>
+            </div>
+
+            <!-- Border Section -->
+            <div class="bg-white rounded-xl shadow-sm p-6">
+              <h2 class="text-lg font-bold text-[#0C2044] mb-4 flex items-center gap-2">
+                <svg class="w-5 h-5 text-[#0B52AC]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6z"/>
+                </svg>
+                Border & Layout
+              </h2>
+              <div class="grid md:grid-cols-2 gap-4">
+                <div class="flex items-center gap-3">
+                  <input type="checkbox" name="show_border" id="show_border" checked={template.show_border} class="w-5 h-5 rounded border-gray-300 text-[#0B52AC] focus:ring-[#0B52AC]" />
+                  <label for="show_border" class="text-sm font-medium text-gray-700">Show Border</label>
+                </div>
+                <div></div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Border Color</label>
+                  <div class="flex gap-2">
+                    <input type="color" name="border_color" value={template.border_color} class="w-12 h-10 rounded border border-gray-300 cursor-pointer" />
+                    <input type="text" name="border_color_text" value={template.border_color} class="flex-1 px-3 py-2 border border-gray-300 rounded-lg font-mono text-sm" />
+                  </div>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Border Width (px)</label>
+                  <input type="number" name="border_width" value={template.border_width} class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC]/20 focus:border-[#0B52AC] outline-none" />
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Border Margin (px)</label>
+                  <input type="number" name="border_margin" value={template.border_margin} class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC]/20 focus:border-[#0B52AC] outline-none" />
+                </div>
+              </div>
+            </div>
+
+            <!-- Footer Section -->
+            <div class="bg-white rounded-xl shadow-sm p-6">
+              <h2 class="text-lg font-bold text-[#0C2044] mb-4 flex items-center gap-2">
+                <svg class="w-5 h-5 text-[#0B52AC]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+                </svg>
+                Footer
+              </h2>
+              <div class="grid md:grid-cols-2 gap-4">
+                <div class="md:col-span-2">
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Footer Text</label>
+                  <input type="text" name="footer_text" value={template.footer_text || ''} class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC]/20 focus:border-[#0B52AC] outline-none" />
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Footer Font Size</label>
+                  <input type="number" name="footer_size" value={template.footer_size} class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC]/20 focus:border-[#0B52AC] outline-none" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Sidebar / Quick Actions -->
+          <div class="lg:col-span-1">
+            <div class="sticky top-28 space-y-6">
+              <!-- Quick Preview -->
+              <div class="bg-white rounded-xl shadow-sm p-6">
+                <h3 class="font-semibold text-[#0C2044] mb-4">Quick Preview</h3>
+                <div class="aspect-[11/8.5] bg-gray-100 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center mb-4">
+                  <div class="text-center text-gray-500">
+                    <svg class="w-12 h-12 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                    <p class="text-sm">Click Preview to generate</p>
+                  </div>
+                </div>
+                <button
+                  id="previewBtnSidebar"
+                  class="w-full px-4 py-2 bg-[#0B52AC] text-white font-medium rounded-lg hover:bg-[#0C2044] transition-colors"
+                >
+                  Generate Preview
+                </button>
+              </div>
+
+              <!-- Template Status -->
+              <div class="bg-white rounded-xl shadow-sm p-6">
+                <h3 class="font-semibold text-[#0C2044] mb-4">Template Status</h3>
+                <div class="space-y-3">
+                  <div class="flex items-center justify-between">
+                    <span class="text-sm text-gray-600">Type</span>
+                    <span class="px-2 py-1 bg-gray-100 text-gray-700 text-xs font-medium rounded-full capitalize">
+                      {template.template_type}
+                    </span>
+                  </div>
+                  <div class="flex items-center justify-between">
+                    <span class="text-sm text-gray-600">Default</span>
+                    {template.is_default ? (
+                      <span class="px-2 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full">Yes</span>
+                    ) : (
+                      <button
+                        id="setDefaultBtn"
+                        class="px-2 py-1 bg-gray-100 text-gray-700 text-xs font-medium rounded-full hover:bg-gray-200 transition-colors"
+                      >
+                        Set as Default
+                      </button>
+                    )}
+                  </div>
+                  <div class="flex items-center justify-between">
+                    <span class="text-sm text-gray-600">Status</span>
+                    <select name="status" class="px-2 py-1 bg-gray-100 text-gray-700 text-xs font-medium rounded-full border-none">
+                      <option value="active" selected={template.status === 'active'}>Active</option>
+                      <option value="inactive" selected={template.status === 'inactive'}>Inactive</option>
+                      <option value="archived" selected={template.status === 'archived'}>Archived</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Danger Zone -->
+              {!template.is_default && (
+                <div class="bg-red-50 rounded-xl shadow-sm p-6 border border-red-100">
+                  <h3 class="font-semibold text-red-700 mb-4">Danger Zone</h3>
+                  <button
+                    id="deleteBtn"
+                    class="w-full px-4 py-2 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors"
+                  >
+                    Delete Template
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <script define:vars={{ templateId: id }}>
+      // Color input sync
+      document.querySelectorAll('input[type="color"]').forEach(colorInput => {
+        const textInput = colorInput.nextElementSibling;
+        if (textInput) {
+          colorInput.addEventListener('input', () => {
+            textInput.value = colorInput.value;
+          });
+          textInput.addEventListener('input', () => {
+            colorInput.value = textInput.value;
+          });
+        }
+      });
+
+      // Preview buttons
+      const openPreview = () => {
+        window.open(`/api/admin/certificate-templates/${templateId}/preview`, '_blank');
+      };
+      document.getElementById('previewBtn')?.addEventListener('click', openPreview);
+      document.getElementById('previewBtnSidebar')?.addEventListener('click', openPreview);
+
+      // Collect form data
+      function collectFormData() {
+        const data = {};
+        const inputs = document.querySelectorAll('input:not([type="color"]):not([name$="_text"]), select, textarea');
+        inputs.forEach(input => {
+          const name = input.name;
+          if (!name) return;
+
+          if (input.type === 'checkbox') {
+            data[name] = input.checked;
+          } else if (input.type === 'number') {
+            data[name] = input.value ? parseFloat(input.value) : null;
+          } else {
+            data[name] = input.value || null;
+          }
+        });
+
+        // Get color values from color inputs
+        document.querySelectorAll('input[type="color"]').forEach(input => {
+          data[input.name] = input.value;
+        });
+
+        return data;
+      }
+
+      // Save button
+      document.getElementById('saveBtn')?.addEventListener('click', async () => {
+        const messageArea = document.getElementById('messageArea');
+        const saveBtn = document.getElementById('saveBtn');
+
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Saving...';
+
+        try {
+          const formData = collectFormData();
+
+          const response = await fetch(`/api/admin/certificate-templates/${templateId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(formData),
+          });
+
+          if (response.ok) {
+            messageArea.className = 'mb-6 px-4 py-3 rounded-lg bg-green-50 text-green-800 border border-green-200';
+            messageArea.textContent = 'Template saved successfully!';
+            messageArea.classList.remove('hidden');
+
+            setTimeout(() => {
+              messageArea.classList.add('hidden');
+            }, 3000);
+          } else {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to save template');
+          }
+        } catch (error) {
+          messageArea.className = 'mb-6 px-4 py-3 rounded-lg bg-red-50 text-red-800 border border-red-200';
+          messageArea.textContent = error.message;
+          messageArea.classList.remove('hidden');
+        } finally {
+          saveBtn.disabled = false;
+          saveBtn.innerHTML = `
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+            </svg>
+            Save Changes
+          `;
+        }
+      });
+
+      // Set as default button
+      document.getElementById('setDefaultBtn')?.addEventListener('click', async () => {
+        if (!confirm('Set this template as the default?')) return;
+
+        try {
+          const response = await fetch(`/api/admin/certificate-templates/${templateId}/set-default`, {
+            method: 'POST',
+          });
+
+          if (response.ok) {
+            window.location.reload();
+          } else {
+            const error = await response.json();
+            alert(error.error || 'Failed to set as default');
+          }
+        } catch (error) {
+          alert('Failed to set as default');
+        }
+      });
+
+      // Delete button
+      document.getElementById('deleteBtn')?.addEventListener('click', async () => {
+        if (!confirm('Are you sure you want to delete this template? This action cannot be undone.')) return;
+
+        try {
+          const response = await fetch(`/api/admin/certificate-templates/${templateId}`, {
+            method: 'DELETE',
+          });
+
+          if (response.ok) {
+            window.location.href = '/admin/certificate-templates';
+          } else {
+            const error = await response.json();
+            alert(error.error || 'Failed to delete template');
+          }
+        } catch (error) {
+          alert('Failed to delete template');
+        }
+      });
+    </script>
+  </body>
+</html>
