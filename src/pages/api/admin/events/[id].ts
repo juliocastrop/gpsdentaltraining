@@ -16,6 +16,10 @@ export const PUT: APIRoute = async ({ params, request }) => {
     }
 
     const body = await request.json();
+    console.log('[API] PUT /api/admin/events/', id, '- Fields received:', Object.keys(body));
+    if (body.gallery_images !== undefined) {
+      console.log('[API] gallery_images:', JSON.stringify(body.gallery_images));
+    }
 
     // Build update object - only include provided fields
     const updateData: Record<string, any> = {};
@@ -67,6 +71,11 @@ export const PUT: APIRoute = async ({ params, request }) => {
       }
     }
 
+    console.log('[API] Update data keys:', Object.keys(updateData));
+    if (updateData.gallery_images) {
+      console.log('[API] gallery_images to save:', JSON.stringify(updateData.gallery_images));
+    }
+
     const { data, error } = await supabaseAdmin
       .from('events')
       .update(updateData)
@@ -74,7 +83,11 @@ export const PUT: APIRoute = async ({ params, request }) => {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('[API] Supabase update error:', error);
+      throw error;
+    }
+    console.log('[API] Update success. gallery_images in response:', JSON.stringify(data?.gallery_images));
 
     return new Response(
       JSON.stringify({ success: true, data }),

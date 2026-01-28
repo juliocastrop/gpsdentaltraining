@@ -187,6 +187,14 @@ export default function EventDetail({
   const [imageUploadError, setImageUploadError] = useState<string | null>(null);
   const featuredImageInputRef = useRef<HTMLInputElement>(null);
 
+  // Gallery state
+  const [galleryImages, setGalleryImages] = useState<string[]>(event.gallery_images || []);
+  const [isUploadingGallery, setIsUploadingGallery] = useState(false);
+  const [galleryUploadError, setGalleryUploadError] = useState<string | null>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const [isSavingGallery, setIsSavingGallery] = useState(false);
+  const [galleryMessage, setGalleryMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
   // Sponsors & Accreditation state
   const [sponsors, setSponsors] = useState<EventSponsor[]>(event.sponsors || []);
   const [accreditations, setAccreditations] = useState<EventAccreditation[]>(event.accreditation || []);
@@ -242,7 +250,9 @@ export default function EventDetail({
         prerequisites: toArray(formData.prerequisites),
         target_audience: toArray(formData.target_audience),
         layout_template: formData.layout_template,
+        gallery_images: galleryImages,
       };
+      console.log('[EventDetail] Saving event payload:', { id: event.id, gallery_images_count: galleryImages.length, gallery_images: galleryImages });
 
       const response = await fetch(`/api/admin/events/${event.id}`, {
         method: 'PUT',
@@ -250,9 +260,11 @@ export default function EventDetail({
         body: JSON.stringify(payload),
       });
 
+      const result = await response.json();
+      console.log('[EventDetail] Save response:', response.status, result);
+
       if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error || 'Failed to update event');
+        throw new Error(result.error || 'Failed to update event');
       }
 
       setMessage({ type: 'success', text: 'Event updated successfully' });
@@ -336,6 +348,81 @@ export default function EventDetail({
       setImageUploadError(error.message || 'Upload failed');
     } finally {
       setIsUploadingImage(false);
+    }
+  };
+
+  // Gallery handlers
+  const handleGalleryUpload = async (files: FileList) => {
+    setGalleryUploadError(null);
+    setIsUploadingGallery(true);
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    const newUrls: string[] = [];
+    console.log('[Gallery] Starting upload of', files.length, 'file(s)');
+
+    try {
+      for (const file of Array.from(files)) {
+        console.log('[Gallery] Uploading file:', file.name, file.type, file.size);
+        if (!allowedTypes.includes(file.type)) {
+          setGalleryUploadError('Invalid file type. Allowed: JPG, PNG, WebP');
+          continue;
+        }
+        if (file.size > 10 * 1024 * 1024) {
+          setGalleryUploadError('File too large. Maximum size is 10MB');
+          continue;
+        }
+        const uploadData = new FormData();
+        uploadData.append('file', file);
+        const response = await fetch('/api/admin/upload/event-image', {
+          method: 'POST',
+          body: uploadData,
+        });
+        const result = await response.json();
+        console.log('[Gallery] Upload response:', response.status, result);
+        if (response.ok && result.url) {
+          newUrls.push(result.url);
+        } else {
+          setGalleryUploadError(result.error || 'Upload failed');
+        }
+      }
+      if (newUrls.length > 0) {
+        setGalleryImages(prev => {
+          const updated = [...prev, ...newUrls];
+          console.log('[Gallery] Updated gallery state:', updated.length, 'images');
+          return updated;
+        });
+      }
+    } catch (error: any) {
+      console.error('[Gallery] Upload error:', error);
+      setGalleryUploadError(error.message || 'Upload failed');
+    } finally {
+      setIsUploadingGallery(false);
+    }
+  };
+
+  const handleRemoveGalleryImage = (index: number) => {
+    setGalleryImages(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSaveGallery = async () => {
+    setIsSavingGallery(true);
+    setGalleryMessage(null);
+    console.log('[Gallery] Saving gallery independently:', { event_id: event.id, count: galleryImages.length, urls: galleryImages });
+    try {
+      const response = await fetch(`/api/admin/events/${event.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gallery_images: galleryImages }),
+      });
+      const result = await response.json();
+      console.log('[Gallery] Save response:', response.status, result);
+      if (!response.ok) throw new Error(result.error || result.details || 'Failed to save gallery');
+      setGalleryMessage({ type: 'success', text: `Gallery saved (${galleryImages.length} image${galleryImages.length !== 1 ? 's' : ''})` });
+      setTimeout(() => setGalleryMessage(null), 3000);
+    } catch (error: any) {
+      console.error('[Gallery] Save error:', error);
+      setGalleryMessage({ type: 'error', text: error.message || 'Save failed' });
+    } finally {
+      setIsSavingGallery(false);
     }
   };
 
@@ -2082,6 +2169,99 @@ export default function EventDetail({
                     placeholder="https://youtube.com/... or https://vimeo.com/..."
                     className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
                   />
+                </div>
+
+                {/* Gallery Images */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-sm font-medium text-gray-700">Gallery Images</label>
+                    {galleryImages.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleSaveGallery}
+                        disabled={isSavingGallery}
+                        className="text-xs font-medium text-blue-600 hover:text-blue-700 disabled:opacity-50"
+                      >
+                        {isSavingGallery ? 'Saving...' : 'Save Gallery'}
+                      </button>
+                    )}
+                  </div>
+
+                  {galleryMessage && (
+                    <p className={`text-xs mb-2 ${galleryMessage.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+                      {galleryMessage.text}
+                    </p>
+                  )}
+
+                  {/* Gallery grid */}
+                  {galleryImages.length > 0 && (
+                    <div className="grid grid-cols-3 gap-2 mb-3">
+                      {galleryImages.map((url, index) => (
+                        <div key={index} className="relative group aspect-square">
+                          <img
+                            src={url}
+                            alt={`Gallery ${index + 1}`}
+                            className="w-full h-full object-cover rounded-lg border border-gray-200"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveGalleryImage(index)}
+                            className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                            title="Remove image"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Upload area */}
+                  <input
+                    ref={galleryInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      const files = e.target.files;
+                      if (files && files.length > 0) handleGalleryUpload(files);
+                      e.target.value = '';
+                    }}
+                  />
+                  <div
+                    onClick={() => galleryInputRef.current?.click()}
+                    onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const files = e.dataTransfer.files;
+                      if (files && files.length > 0) handleGalleryUpload(files);
+                    }}
+                    className={`border-2 border-dashed rounded-lg p-3 text-center cursor-pointer transition-colors ${
+                      isUploadingGallery
+                        ? 'border-blue-300 bg-blue-50'
+                        : 'border-gray-300 hover:border-blue-400 hover:bg-gray-50'
+                    }`}
+                  >
+                    {isUploadingGallery ? (
+                      <div className="flex items-center justify-center gap-2 text-blue-600">
+                        <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                        </svg>
+                        <span className="text-sm font-medium">Uploading...</span>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500">
+                        Click or drag images here ({galleryImages.length} image{galleryImages.length !== 1 ? 's' : ''})
+                      </p>
+                    )}
+                  </div>
+
+                  {galleryUploadError && (
+                    <p className="mt-1 text-xs text-red-600">{galleryUploadError}</p>
+                  )}
                 </div>
 
                 {/* Buttons */}

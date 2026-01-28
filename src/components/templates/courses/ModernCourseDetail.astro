@@ -9,6 +9,8 @@ import Footer from '../../layout/Footer';
 import CountdownTimer from '../../events/CountdownTimer';
 import TicketSelector from '../../tickets/TicketSelector';
 import WaitlistForm from '../../tickets/WaitlistForm';
+import AddToCalendar from '../../events/AddToCalendar';
+import EventGallery from '../../events/EventGallery';
 import type { Speaker } from '../../../types/database';
 
 interface MigratedScheduleTopic {
@@ -60,6 +62,10 @@ const {
   dayCount,
   url,
 } = Astro.props;
+
+// Sponsors & Accreditation: use event data if available
+const sponsors = event.sponsors && event.sponsors.length > 0 ? event.sponsors : null;
+const accreditations = event.accreditation && event.accreditation.length > 0 ? event.accreditation : null;
 
 // Helper functions
 function formatDateShort(dateStr: string): string {
@@ -192,7 +198,7 @@ function cleanHtmlDescription(html: string | null | undefined): string {
           )}
         </div>
 
-        <!-- Share Buttons -->
+        <!-- Share & Calendar Buttons -->
         <div class="flex items-center gap-3 mt-8">
           <span class="text-white/60 text-sm">Share:</span>
           <a href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url.href)}`} target="_blank" rel="noopener noreferrer" class="w-10 h-10 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white transition-colors" aria-label="Share on Facebook">
@@ -207,6 +213,16 @@ function cleanHtmlDescription(html: string | null | undefined): string {
           <a href={`mailto:?subject=${encodeURIComponent(cleanTitle)}&body=${encodeURIComponent(`Check out this dental course: ${url.href}`)}`} class="w-10 h-10 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white transition-colors" aria-label="Share via Email">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
           </a>
+          <AddToCalendar
+            title={cleanTitle}
+            description={event.excerpt || ''}
+            location={event.venue || ''}
+            startDate={event.start_date}
+            endDate={event.end_date || ''}
+            url={url.href}
+            variant="icon"
+            client:load
+          />
         </div>
       </div>
     </div>
@@ -238,39 +254,31 @@ function cleanHtmlDescription(html: string | null | undefined): string {
 )}
 
 <!-- Main Content -->
-<main class="flex-1 bg-[#F8F9FA]">
+<main class="flex-1 bg-white">
   <div class="container mx-auto px-4 lg:px-8 max-w-7xl py-12 lg:py-16">
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-12">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-14">
 
       <!-- Left Column - Main Content -->
-      <div class="lg:col-span-2 space-y-10 lg:space-y-12">
+      <div class="lg:col-span-2 space-y-12 lg:space-y-16">
 
         <!-- 1. Course Description -->
         {cleanDescription && (
-          <div class="bg-white rounded-2xl shadow-lg p-8 lg:p-12">
-            <h2 class="text-2xl lg:text-3xl font-bold text-[#0C2044] mb-8 flex items-center gap-4">
-              <span class="w-12 h-12 bg-gradient-to-br from-[#DDC89D] to-[#BFAC87] rounded-xl flex items-center justify-center shadow-lg">
-                <svg class="w-6 h-6 text-[#0C2044]" fill="currentColor" viewBox="0 0 20 20">
-                  <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
-                </svg>
-              </span>
-              <span>Course Description</span>
-            </h2>
-            <div class="course-description-content" set:html={cleanDescription} />
+          <div>
+            <div class="mb-8">
+              <h2 class="text-2xl lg:text-3xl font-bold text-[#0C2044]">Course Description</h2>
+              <div class="w-16 h-1 bg-[#26ACF5] mt-3 rounded-full"></div>
+            </div>
+            <div class="course-description-content max-w-prose" set:html={cleanDescription} />
           </div>
         )}
 
         <!-- 2. Video Section -->
         {event.video_url && (
-          <div class="bg-white rounded-2xl shadow-lg p-8 lg:p-12">
-            <h2 class="text-2xl lg:text-3xl font-bold text-[#0C2044] mb-8 flex items-center gap-4">
-              <span class="w-12 h-12 bg-gradient-to-br from-[#26ACF5] to-[#0B52AC] rounded-xl flex items-center justify-center shadow-lg">
-                <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
-                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"/>
-                </svg>
-              </span>
-              <span>Course Preview</span>
-            </h2>
+          <div class="pt-12 lg:pt-16 border-t border-gray-100">
+            <div class="mb-8">
+              <h2 class="text-2xl lg:text-3xl font-bold text-[#0C2044]">Course Preview</h2>
+              <div class="w-16 h-1 bg-[#26ACF5] mt-3 rounded-full"></div>
+            </div>
             <div class="relative aspect-video rounded-xl overflow-hidden bg-[#0C2044] shadow-xl">
               {event.video_url.includes('youtube.com') || event.video_url.includes('youtu.be') ? (
                 <iframe src={event.video_url.replace('watch?v=', 'embed/').replace('youtu.be/', 'youtube.com/embed/')} title="Course Preview Video" class="absolute inset-0 w-full h-full" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
@@ -285,21 +293,19 @@ function cleanHtmlDescription(html: string | null | undefined): string {
 
         <!-- 3. Speakers Section -->
         {event.speakers && event.speakers.length > 0 && (
-          <div class="bg-white rounded-2xl shadow-lg p-8 lg:p-12">
-            <h2 class="text-2xl lg:text-3xl font-bold text-[#0C2044] mb-8 flex items-center gap-4">
-              <span class="w-12 h-12 bg-gradient-to-br from-[#0B52AC] to-[#173D84] rounded-xl flex items-center justify-center shadow-lg">
-                <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/>
-                </svg>
-              </span>
-              <span>{event.speakers.length > 1 ? 'Meet Your Instructors' : 'Meet Your Instructor'}</span>
-            </h2>
+          <div class="pt-12 lg:pt-16 border-t border-gray-100">
+            <div class="mb-8">
+              <h2 class="text-2xl lg:text-3xl font-bold text-[#0C2044]">
+                {event.speakers.length > 1 ? 'Meet Your Instructors' : 'Meet Your Instructor'}
+              </h2>
+              <div class="w-16 h-1 bg-[#26ACF5] mt-3 rounded-full"></div>
+            </div>
             <div class="space-y-8">
               {event.speakers.map((speaker: Speaker) => (
-                <div class="flex flex-col md:flex-row gap-6 p-6 bg-[#F8F9FA] rounded-xl hover:shadow-md transition-shadow">
+                <div class="flex flex-col md:flex-row gap-6 p-6 bg-[#F8F9FA] rounded-xl">
                   <div class="flex-shrink-0">
                     {speaker.photo_url ? (
-                      <img src={speaker.photo_url} alt={speaker.name.replace('[TEST] ', '')} class="w-32 h-32 md:w-40 md:h-40 rounded-xl object-cover object-top shadow-lg bg-gray-100" />
+                      <img src={speaker.photo_url} alt={speaker.name.replace('[TEST] ', '')} class="w-32 h-32 md:w-40 md:h-40 rounded-xl object-cover object-top shadow-md bg-gray-100" />
                     ) : (
                       <div class="w-32 h-32 md:w-40 md:h-40 rounded-xl bg-gradient-to-br from-[#173D84] to-[#0C2044] flex items-center justify-center">
                         <span class="text-4xl font-bold text-white">{speaker.name.replace('[TEST] ', '').split(' ').map((n: string) => n[0]).join('').substring(0, 2)}</span>
@@ -338,25 +344,19 @@ function cleanHtmlDescription(html: string | null | undefined): string {
 
         <!-- 4. Course Objectives -->
         {learningObjectives && learningObjectives.length > 0 && (
-          <div class="bg-gradient-to-br from-[#0C2044] to-[#173D84] rounded-2xl shadow-xl p-8 lg:p-12 text-white relative overflow-hidden">
+          <div class="bg-gradient-to-br from-[#0C2044] to-[#173D84] rounded-2xl p-8 lg:p-12 text-white relative overflow-hidden">
             <div class="absolute top-0 right-0 w-64 h-64 bg-[#DDC89D] rounded-full opacity-5 translate-x-1/2 -translate-y-1/2"></div>
-            <h2 class="text-2xl lg:text-3xl font-bold text-white mb-8 flex items-center gap-4 relative z-10">
-              <span class="w-12 h-12 bg-gradient-to-br from-[#DDC89D] to-[#BFAC87] rounded-xl flex items-center justify-center shadow-lg">
-                <svg class="w-6 h-6 text-[#0C2044]" fill="currentColor" viewBox="0 0 20 20">
-                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                </svg>
-              </span>
-              <span>Course Objectives</span>
-            </h2>
+            <div class="mb-8 relative z-10">
+              <h2 class="text-2xl lg:text-3xl font-bold text-white">Course Objectives</h2>
+              <div class="w-16 h-1 bg-[#DDC89D] mt-3 rounded-full"></div>
+            </div>
             <p class="text-white/70 mb-8 text-lg relative z-10">Upon completion of this course, participants will be able to:</p>
-            <ul class="space-y-5 relative z-10">
+            <ul class="space-y-4 relative z-10">
               {learningObjectives.map((objective: string) => (
-                <li class="flex items-start gap-4 bg-white/5 rounded-xl p-4 hover:bg-white/10 transition-colors">
-                  <span class="flex-shrink-0 w-8 h-8 bg-[#DDC89D] rounded-lg flex items-center justify-center mt-0.5 shadow-md">
-                    <svg class="w-5 h-5 text-[#0C2044]" fill="currentColor" viewBox="0 0 20 20">
-                      <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
-                    </svg>
-                  </span>
+                <li class="flex items-start gap-3">
+                  <svg class="w-5 h-5 text-[#DDC89D] flex-shrink-0 mt-1" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                  </svg>
                   <span class="text-white/90 leading-relaxed text-base lg:text-lg">{objective}</span>
                 </li>
               ))}
@@ -366,61 +366,30 @@ function cleanHtmlDescription(html: string | null | undefined): string {
 
         <!-- 5. Gallery Section -->
         {event.gallery_images && event.gallery_images.length > 0 && (
-          <div class="bg-white rounded-2xl shadow-lg p-8 lg:p-12">
-            <h2 class="text-2xl lg:text-3xl font-bold text-[#0C2044] mb-8 flex items-center gap-4">
-              <span class="w-12 h-12 bg-gradient-to-br from-[#DDC89D] to-[#BFAC87] rounded-xl flex items-center justify-center shadow-lg">
-                <svg class="w-6 h-6 text-[#0C2044]" fill="currentColor" viewBox="0 0 20 20">
-                  <path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd"/>
-                </svg>
-              </span>
-              <span>Course Gallery</span>
-            </h2>
-            <div class="grid grid-cols-2 md:grid-cols-3 gap-4" id="gallery-grid">
-              {event.gallery_images.map((image: string, index: number) => (
-                <button type="button" class="gallery-item aspect-square rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 hover:scale-[1.02] cursor-pointer group relative" data-index={index} data-src={image}>
-                  <img src={image} alt={`${cleanTitle} - Image ${index + 1}`} class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110" loading="lazy" />
-                  <div class="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                    <svg class="w-10 h-10 text-white opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"/>
-                    </svg>
-                  </div>
-                </button>
-              ))}
+          <div class="pt-12 lg:pt-16 border-t border-gray-100">
+            <div class="mb-8">
+              <h2 class="text-2xl lg:text-3xl font-bold text-[#0C2044]">Course Gallery</h2>
+              <div class="w-16 h-1 bg-[#26ACF5] mt-3 rounded-full"></div>
             </div>
-            <!-- Lightbox Modal -->
-            <div id="lightbox-modal" class="fixed inset-0 z-50 hidden bg-black/90 items-center justify-center p-4">
-              <button type="button" id="lightbox-close" class="absolute top-4 right-4 w-12 h-12 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white transition-colors z-10" aria-label="Close gallery">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-              </button>
-              <button type="button" id="lightbox-prev" class="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white transition-colors" aria-label="Previous image">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
-              </button>
-              <button type="button" id="lightbox-next" class="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white transition-colors" aria-label="Next image">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-              </button>
-              <img id="lightbox-image" src="" alt="Gallery image" class="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl" />
-              <div id="lightbox-counter" class="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/80 text-sm font-medium bg-black/30 px-4 py-2 rounded-full">
-                1 / {event.gallery_images.length}
-              </div>
-            </div>
+            <EventGallery
+              images={event.gallery_images}
+              title={cleanTitle}
+              columns={3}
+              client:load
+            />
           </div>
         )}
 
         <!-- 6. Contact Information -->
-        <div class="bg-white rounded-2xl shadow-lg p-8 lg:p-12">
-          <h2 class="text-2xl lg:text-3xl font-bold text-[#0C2044] mb-8 flex items-center gap-4">
-            <span class="w-12 h-12 bg-gradient-to-br from-[#26ACF5] to-[#0B52AC] rounded-xl flex items-center justify-center shadow-lg">
-              <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/>
-                <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/>
-              </svg>
-            </span>
-            <span>Contact Information</span>
-          </h2>
+        <div class="pt-12 lg:pt-16 border-t border-gray-100">
+          <div class="mb-8">
+            <h2 class="text-2xl lg:text-3xl font-bold text-[#0C2044]">Contact Information</h2>
+            <div class="w-16 h-1 bg-[#26ACF5] mt-3 rounded-full"></div>
+          </div>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div class="flex items-start gap-4 p-4 bg-[#F8F9FA] rounded-xl">
-              <div class="w-12 h-12 bg-[#0B52AC] rounded-lg flex items-center justify-center flex-shrink-0">
-                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+              <div class="w-10 h-10 bg-[#0B52AC]/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                <svg class="w-5 h-5 text-[#0B52AC]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
               </div>
               <div>
                 <h4 class="font-semibold text-[#0C2044] mb-1">Email Us</h4>
@@ -428,8 +397,8 @@ function cleanHtmlDescription(html: string | null | undefined): string {
               </div>
             </div>
             <div class="flex items-start gap-4 p-4 bg-[#F8F9FA] rounded-xl">
-              <div class="w-12 h-12 bg-[#0B52AC] rounded-lg flex items-center justify-center flex-shrink-0">
-                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+              <div class="w-10 h-10 bg-[#0B52AC]/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                <svg class="w-5 h-5 text-[#0B52AC]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
               </div>
               <div>
                 <h4 class="font-semibold text-[#0C2044] mb-1">Training Center</h4>
@@ -439,23 +408,19 @@ function cleanHtmlDescription(html: string | null | undefined): string {
           </div>
           <div class="mt-6 pt-6 border-t border-gray-200">
             <a href="/contact" class="inline-flex items-center gap-2 text-[#0B52AC] font-semibold hover:gap-3 transition-all">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-              Download vCard
+              Contact Us
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
             </a>
           </div>
         </div>
 
         <!-- 7. Course Schedule / Agenda -->
         {migratedSchedules.length > 0 && (
-          <div class="bg-white rounded-2xl shadow-lg p-8 lg:p-12">
-            <h2 class="text-2xl lg:text-3xl font-bold text-[#0C2044] mb-8 flex items-center gap-4">
-              <span class="w-12 h-12 bg-gradient-to-br from-[#DDC89D] to-[#BFAC87] rounded-xl flex items-center justify-center shadow-lg">
-                <svg class="w-6 h-6 text-[#0C2044]" fill="currentColor" viewBox="0 0 20 20">
-                  <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/>
-                </svg>
-              </span>
-              <span>Agenda</span>
-            </h2>
+          <div class="pt-12 lg:pt-16 border-t border-gray-100">
+            <div class="mb-8">
+              <h2 class="text-2xl lg:text-3xl font-bold text-[#0C2044]">Agenda</h2>
+              <div class="w-16 h-1 bg-[#26ACF5] mt-3 rounded-full"></div>
+            </div>
             {migratedSchedules.length > 1 && (
               <div class="flex gap-2 mb-6 overflow-x-auto pb-2" id="schedule-tabs">
                 {migratedSchedules.map((schedule, index) => (
@@ -501,42 +466,72 @@ function cleanHtmlDescription(html: string | null | undefined): string {
           </div>
         )}
 
-        <!-- 8. Sponsors Section -->
-        <div class="bg-white rounded-2xl shadow-lg p-8 lg:p-12">
-          <h2 class="text-2xl lg:text-3xl font-bold text-[#0C2044] mb-8 flex items-center gap-4">
-            <span class="w-12 h-12 bg-gradient-to-br from-[#0B52AC] to-[#173D84] rounded-xl flex items-center justify-center shadow-lg">
-              <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-              </svg>
-            </span>
-            <span>Our Sponsors & Accreditation</span>
-          </h2>
-          <div class="flex flex-wrap items-center justify-center gap-8 lg:gap-12">
-            <div class="flex flex-col items-center gap-2">
-              <div class="w-24 h-24 bg-[#F8F9FA] rounded-xl flex items-center justify-center p-4">
-                <img src="/pace-logo.png" alt="PACE - Program Approval for Continuing Education" class="max-w-full max-h-full object-contain" />
-              </div>
-              <span class="text-xs text-gray-500 text-center">PACE Approved</span>
-            </div>
-            <div class="flex flex-col items-center gap-2">
-              <div class="w-24 h-24 bg-[#F8F9FA] rounded-xl flex items-center justify-center p-4">
-                <img src="/logo.svg" alt="GPS Dental Training" class="max-w-full max-h-full object-contain" />
-              </div>
-              <span class="text-xs text-gray-500 text-center">GPS Dental Training</span>
-            </div>
-            <div class="flex flex-col items-center gap-2">
-              <div class="w-24 h-24 bg-[#F8F9FA] rounded-xl flex items-center justify-center p-4">
-                <div class="text-center">
-                  <span class="text-lg font-bold text-[#0C2044]">AGD</span>
-                  <p class="text-[8px] text-gray-500 leading-tight mt-1">Academy of<br/>General Dentistry</p>
-                </div>
-              </div>
-              <span class="text-xs text-gray-500 text-center">AGD Member</span>
-            </div>
+        <!-- 8. Sponsors & Accreditation Section -->
+        <div class="pt-12 lg:pt-16 border-t border-gray-100">
+          <div class="mb-8">
+            <h2 class="text-2xl lg:text-3xl font-bold text-[#0C2044]">Our Sponsors & Accreditation</h2>
+            <div class="w-16 h-1 bg-[#26ACF5] mt-3 rounded-full"></div>
           </div>
-          <p class="text-center text-gray-500 text-sm mt-8">
-            GPS Dental Training is an AGD PACE-approved provider. PACE approval does not imply acceptance by a state or provincial board of dentistry.
-          </p>
+
+          {/* Dynamic Sponsors from database */}
+          {sponsors ? (
+            <div class="flex flex-wrap items-center justify-center gap-8 lg:gap-12 mb-8">
+              {sponsors.map((sponsor: any) => (
+                <div class="flex flex-col items-center gap-2">
+                  <div class="w-48 h-48 bg-[#F8F9FA] rounded-xl flex items-center justify-center p-4">
+                    {sponsor.website_url ? (
+                      <a href={sponsor.website_url} target="_blank" rel="noopener noreferrer" class="opacity-80 hover:opacity-100 transition-opacity">
+                        <img src={sponsor.logo_url} alt={sponsor.name} class="max-w-full max-h-full object-contain" />
+                      </a>
+                    ) : (
+                      <img src={sponsor.logo_url} alt={sponsor.name} class="max-w-full max-h-full object-contain opacity-80" />
+                    )}
+                  </div>
+                  <span class="text-xs text-gray-500 text-center">{sponsor.name}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div class="flex flex-wrap items-center justify-center gap-8 lg:gap-12 mb-8">
+              <div class="flex flex-col items-center gap-2">
+                <div class="w-24 h-24 bg-[#F8F9FA] rounded-xl flex items-center justify-center p-4">
+                  <img src="/pace-logo.png" alt="PACE - Program Approval for Continuing Education" class="max-w-full max-h-full object-contain" />
+                </div>
+                <span class="text-xs text-gray-500 text-center">PACE Approved</span>
+              </div>
+              <div class="flex flex-col items-center gap-2">
+                <div class="w-24 h-24 bg-[#F8F9FA] rounded-xl flex items-center justify-center p-4">
+                  <img src="/logo.svg" alt="GPS Dental Training" class="max-w-full max-h-full object-contain" />
+                </div>
+                <span class="text-xs text-gray-500 text-center">GPS Dental Training</span>
+              </div>
+            </div>
+          )}
+
+          {/* Dynamic Accreditation from database */}
+          {accreditations && accreditations.length > 0 ? (
+            <div class="border-t border-gray-100 pt-6 mt-2">
+              <div class="flex flex-wrap items-center justify-center gap-8 lg:gap-12">
+                {accreditations.map((accred: any) => (
+                  <div class="flex items-center gap-3">
+                    {accred.logo_url && (
+                      <div class="w-16 h-16 bg-[#F8F9FA] rounded-lg flex items-center justify-center p-2 flex-shrink-0">
+                        <img src={accred.logo_url} alt={accred.name} class="max-w-full max-h-full object-contain" />
+                      </div>
+                    )}
+                    <div>
+                      <p class="text-sm font-semibold text-[#0C2044]">{accred.name}</p>
+                      {accred.text && <p class="text-xs text-gray-500 max-w-[250px]">{accred.text}</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <p class="text-center text-gray-500 text-sm mt-2">
+              GPS Dental Training is an AGD PACE-approved provider. PACE approval does not imply acceptance by a state or provincial board of dentistry.
+            </p>
+          )}
         </div>
       </div>
 
@@ -657,53 +652,3 @@ function cleanHtmlDescription(html: string | null | undefined): string {
   });
 </script>
 
-<!-- Gallery Lightbox Script -->
-<script>
-  document.addEventListener('DOMContentLoaded', () => {
-    const galleryItems = document.querySelectorAll('.gallery-item');
-    const lightbox = document.getElementById('lightbox-modal');
-    const lightboxImage = document.getElementById('lightbox-image') as HTMLImageElement | null;
-    const lightboxClose = document.getElementById('lightbox-close');
-    const lightboxPrev = document.getElementById('lightbox-prev');
-    const lightboxNext = document.getElementById('lightbox-next');
-    const lightboxCounter = document.getElementById('lightbox-counter');
-    if (!galleryItems.length || !lightbox) return;
-    let currentIndex = 0;
-    const images: string[] = [];
-    galleryItems.forEach((item) => {
-      const src = item.getAttribute('data-src');
-      if (src) images.push(src);
-    });
-    function showImage(idx: number) {
-      let newIndex = idx;
-      if (newIndex < 0) newIndex = images.length - 1;
-      if (newIndex >= images.length) newIndex = 0;
-      currentIndex = newIndex;
-      if (lightboxImage) lightboxImage.src = images[currentIndex];
-      if (lightboxCounter) lightboxCounter.textContent = `${currentIndex + 1} / ${images.length}`;
-    }
-    function openLightbox(idx: number) {
-      currentIndex = idx;
-      showImage(currentIndex);
-      if (lightbox) { lightbox.classList.remove('hidden'); lightbox.classList.add('flex'); }
-      document.body.style.overflow = 'hidden';
-    }
-    function closeLightbox() {
-      if (lightbox) { lightbox.classList.add('hidden'); lightbox.classList.remove('flex'); }
-      document.body.style.overflow = '';
-    }
-    galleryItems.forEach((item) => {
-      item.addEventListener('click', () => { openLightbox(parseInt(item.getAttribute('data-index') || '0')); });
-    });
-    lightboxClose?.addEventListener('click', closeLightbox);
-    lightboxPrev?.addEventListener('click', () => showImage(currentIndex - 1));
-    lightboxNext?.addEventListener('click', () => showImage(currentIndex + 1));
-    document.addEventListener('keydown', (e) => {
-      if (!lightbox || !lightbox.classList.contains('flex')) return;
-      if (e.key === 'Escape') closeLightbox();
-      if (e.key === 'ArrowLeft') showImage(currentIndex - 1);
-      if (e.key === 'ArrowRight') showImage(currentIndex + 1);
-    });
-    lightbox?.addEventListener('click', (e) => { if (e.target === lightbox) closeLightbox(); });
-  });
-</script>

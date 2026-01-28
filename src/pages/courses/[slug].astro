@@ -67,9 +67,15 @@ try {
     try {
       const supabaseEvent = await getSupabaseEventBySlug(slug);
       eventId = supabaseEvent?.id || strapiEvent.id.toString();
-      // Merge layout_template from Supabase if available
+      // Merge fields from Supabase that are managed via admin panel
       if (supabaseEvent?.layout_template) {
         event.layout_template = supabaseEvent.layout_template;
+      }
+      if (supabaseEvent?.gallery_images && supabaseEvent.gallery_images.length > 0) {
+        event.gallery_images = supabaseEvent.gallery_images;
+      }
+      if (supabaseEvent?.sponsors) {
+        event.sponsors = supabaseEvent.sponsors;
       }
     } catch {
       eventId = strapiEvent.id.toString();

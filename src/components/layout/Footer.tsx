@@ -172,9 +172,7 @@ export default function Footer({ logo }: FooterProps) {
       <div className="bg-[#0C2044]">
         <div className="container-wide py-6">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <p className="text-white/60 text-sm">
-              © {currentYear} GPS Dental Training. All rights reserved.
-            </p>
+            <p className="text-white/60 text-sm" dangerouslySetInnerHTML={{ __html: `&copy; ${currentYear} GPS Dental Training. All rights reserved.` }} />
             <div className="flex items-center gap-6">
               <a href="/privacy" className="text-white/60 hover:text-white text-sm transition-colors">
                 Privacy Policy
