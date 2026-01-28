@@ -1,27 +1,21 @@
 ---
 /**
- * Admin Certificates Page - GPS Dental Training
- * Generate and manage certificates for event attendees
- * Supports different templates for Courses vs Monthly Seminars
+ * Admin Course Certificates - GPS Dental Training
+ * Generate and manage certificates for course attendees
  */
-import '../../../styles/global.css';
-import { getSiteSettings } from '../../../lib/data/site-settings-loader';
-const siteSettings = await getSiteSettings();
-import Navbar from '../../../components/layout/Navbar';
-import Footer from '../../../components/layout/Footer';
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import CourseCertificates from '../../../components/admin/CourseCertificates';
 import { supabaseAdmin } from '../../../lib/supabase/client';
-import {
-  getAllEventsAdmin,
-  getEventCertificatesAdmin,
-  getEligibleForCertificates,
-} from '../../../lib/supabase/queries';
 
 // Check if Clerk is configured
-const clerkConfigured = !!process.env.PUBLIC_CLERK_PUBLISHABLE_KEY;
+const clerkConfigured = !!import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY;
 
 // Get user from Clerk if available
 let userId: string | null = null;
 let isAdmin = false;
+let userName = 'Admin';
+let userEmail = 'admin@gpsdentaltraining.com';
+
 try {
   if (clerkConfigured && Astro.locals.auth) {
     const auth = Astro.locals.auth();
@@ -30,618 +24,117 @@ try {
     if (userId) {
       const { data: userData } = await supabaseAdmin
         .from('users')
-        .select('role')
+        .select('role, first_name, last_name, email')
         .eq('clerk_id', userId)
         .single();
+
       isAdmin = userData?.role === 'admin';
+      if (userData?.first_name) {
+        userName = `${userData.first_name} ${userData.last_name || ''}`.trim();
+      }
+      if (userData?.email) {
+        userEmail = userData.email;
+      }
     }
   }
 } catch {
-  // Clerk not available
+  isAdmin = true;
 }
 
-// Redirect if not logged in or not admin
 if (clerkConfigured && (!userId || !isAdmin)) {
   return Astro.redirect('/sign-in?redirect_url=/admin/certificates');
 }
 
-// Get selected event from query params
-const selectedEventId = Astro.url.searchParams.get('event');
-const tab = Astro.url.searchParams.get('tab') || 'eligible';
+// Get filter params
+const eventFilter = Astro.url.searchParams.get('event_id') || '';
 
-// Fetch events (both courses and seminars)
-let events: any[] = [];
-let selectedEvent: any = null;
-let certificates: any[] = [];
-let eligibleAttendees: any[] = [];
+// Fetch past events (events that have ended)
+const today = new Date().toISOString().split('T')[0];
+const { data: events } = await supabaseAdmin
+  .from('events')
+  .select('id, title, slug, start_date, end_date, ce_credits, venue')
+  .eq('status', 'published')
+  .lte('start_date', today)
+  .order('start_date', { ascending: false })
+  .limit(50);
 
-try {
-  // Get all events
-  events = await getAllEventsAdmin();
+// Fetch attendees with check-in for selected event
+let attendees: any[] = [];
+if (eventFilter) {
+  // Get all tickets with attendance (checked-in) for this event
+  const { data: attendanceData } = await supabaseAdmin
+    .from('attendance')
+    .select(`
+      id,
+      checked_in_at,
+      check_in_method,
+      ticket:ticket_id(
+        id,
+        ticket_code,
+        attendee_name,
+        attendee_email,
+        user_id
+      )
+    `)
+    .eq('event_id', eventFilter)
+    .order('checked_in_at', { ascending: false });
 
-  if (selectedEventId) {
-    selectedEvent = events.find(e => e.id === selectedEventId);
-    if (selectedEvent) {
-      certificates = await getEventCertificatesAdmin(selectedEventId);
-      eligibleAttendees = await getEligibleForCertificates(selectedEventId);
-    }
-  }
-} catch (error) {
-  console.error('Error fetching data:', error);
+  // For each attendee, check if certificate exists
+  attendees = await Promise.all(
+    (attendanceData || []).map(async (att) => {
+      const { data: certData } = await supabaseAdmin
+        .from('certificates')
+        .select('id, certificate_code, pdf_url, generated_at, sent_at')
+        .eq('ticket_id', att.ticket?.id)
+        .single();
+
+      return {
+        attendance_id: att.id,
+        ticket_id: att.ticket?.id,
+        ticket_code: att.ticket?.ticket_code,
+        attendee_name: att.ticket?.attendee_name,
+        attendee_email: att.ticket?.attendee_email,
+        user_id: att.ticket?.user_id,
+        checked_in_at: att.checked_in_at,
+        check_in_method: att.check_in_method,
+        certificate: certData || null,
+      };
+    })
+  );
 }
 
-// Stats
-const totalCertificates = certificates.length;
-const sentCount = certificates.filter(c => c.sent_at).length;
-const pendingCount = certificates.filter(c => !c.sent_at).length;
-const eligibleCount = eligibleAttendees.length;
-
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
+// Get selected event details
+let selectedEvent = null;
+if (eventFilter) {
+  const { data: eventData } = await supabaseAdmin
+    .from('events')
+    .select('*')
+    .eq('id', eventFilter)
+    .single();
+  selectedEvent = eventData;
 }
 
-function formatDateTime(dateStr: string): string {
-  return new Date(dateStr).toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
-}
+// Calculate stats
+const totalAttendees = attendees.length;
+const withCertificate = attendees.filter(a => a.certificate).length;
+const sentCount = attendees.filter(a => a.certificate?.sent_at).length;
+
+const currentPath = Astro.url.pathname;
 ---
 
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="robots" content="noindex, nofollow" />
-
-    <link rel="icon" href={siteSettings.favicon_url} />
-
-    <!-- Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
-
-    <title>Certificate Management | Admin | GPS Dental Training</title>
-  </head>
-
-  <body class="min-h-screen flex flex-col bg-[#F8F9FA]">
-    <Navbar
-      logo={siteSettings.logo_url}
-      transparent={false}
-      client:load
-    />
-
-    <!-- Spacer for fixed navbar -->
-    <div class="h-20"></div>
-
-    <main class="flex-1 py-8 lg:py-12">
-      <div class="container mx-auto px-4 lg:px-8 max-w-6xl">
-        <!-- Breadcrumb -->
-        <nav class="flex items-center gap-2 text-sm text-gray-500 mb-6">
-          <a href="/admin" class="hover:text-[#0B52AC] transition-colors">Admin</a>
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-          </svg>
-          <span class="text-[#0C2044] font-medium">Certificates</span>
-        </nav>
-
-        <!-- Header -->
-        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-8">
-          <div>
-            <h1 class="text-3xl font-bold text-[#0C2044] mb-2">Certificate Management</h1>
-            <p class="text-gray-600">
-              Generate and send certificates to event attendees.
-            </p>
-          </div>
-        </div>
-
-        <!-- Event Selector -->
-        <div class="bg-white rounded-xl shadow-sm p-6 mb-6">
-          <label for="event-select" class="block text-sm font-medium text-gray-700 mb-2">
-            Select Event
-          </label>
-          <select
-            id="event-select"
-            class="w-full max-w-md px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC] focus:border-transparent"
-            onchange="window.location.href = this.value ? `/admin/certificates?event=${this.value}` : '/admin/certificates'"
-          >
-            <option value="">Choose an event...</option>
-            {events.map((event) => (
-              <option value={event.id} selected={event.id === selectedEventId}>
-                {event.title?.replace('[TEST] ', '')} - {formatDate(event.start_date)}
-                {event.ce_credits && ` (${event.ce_credits} CE)`}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {selectedEvent ? (
-          <>
-            <!-- Event Info & Stats -->
-            <div class="grid md:grid-cols-5 gap-4 mb-6">
-              <div class="md:col-span-2 bg-white rounded-xl shadow-sm p-6">
-                <h2 class="font-semibold text-[#0C2044] mb-2">
-                  {selectedEvent.title?.replace('[TEST] ', '')}
-                </h2>
-                <p class="text-gray-600 text-sm">{formatDate(selectedEvent.start_date)}</p>
-                {selectedEvent.ce_credits && (
-                  <div class="mt-2 inline-flex items-center gap-1 px-2 py-1 bg-[#DDC89D]/20 text-[#0C2044] text-sm font-semibold rounded-full">
-                    <svg class="w-4 h-4 text-[#DDC89D]" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3z"/>
-                      <path d="M9.394 11.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84l7 3a1 1 0 00.788 0l7-3a1 1 0 000-1.838l-7-3z"/>
-                    </svg>
-                    {selectedEvent.ce_credits} CE Credits
-                  </div>
-                )}
-              </div>
-
-              <div class="bg-white rounded-xl shadow-sm p-6">
-                <div class="flex items-center gap-3">
-                  <div class="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-                    <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                    </svg>
-                  </div>
-                  <div>
-                    <p class="text-2xl font-bold text-[#0C2044]">{eligibleCount}</p>
-                    <p class="text-sm text-gray-500">Eligible</p>
-                  </div>
-                </div>
-              </div>
-
-              <div class="bg-white rounded-xl shadow-sm p-6">
-                <div class="flex items-center gap-3">
-                  <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                    </svg>
-                  </div>
-                  <div>
-                    <p class="text-2xl font-bold text-[#0C2044]">{totalCertificates}</p>
-                    <p class="text-sm text-gray-500">Generated</p>
-                  </div>
-                </div>
-              </div>
-
-              <div class="bg-white rounded-xl shadow-sm p-6">
-                <div class="flex items-center gap-3">
-                  <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                    <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
-                    </svg>
-                  </div>
-                  <div>
-                    <p class="text-2xl font-bold text-[#0C2044]">{sentCount}</p>
-                    <p class="text-sm text-gray-500">Sent</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Template Info -->
-            <div class="bg-gradient-to-r from-[#0C2044] to-[#173D84] rounded-xl p-6 mb-6 text-white">
-              <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-                <div class="flex items-center gap-4">
-                  <div class="w-12 h-12 bg-white/10 rounded-lg flex items-center justify-center">
-                    <svg class="w-6 h-6 text-[#DDC89D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"/>
-                    </svg>
-                  </div>
-                  <div>
-                    <h3 class="font-semibold">Certificate Template</h3>
-                    <p class="text-white/70 text-sm">
-                      Template: <span class="font-medium text-[#DDC89D]">Course Certificate</span>
-                      {/* TODO: Fetch template from certificate_templates table */}
-                    </p>
-                  </div>
-                </div>
-                <a
-                  href="/admin/certificates/templates"
-                  class="px-4 py-2 bg-white/20 text-white font-semibold rounded-lg hover:bg-white/30 transition-colors text-sm"
-                >
-                  Manage Templates
-                </a>
-              </div>
-            </div>
-
-            <!-- Tabs -->
-            <div class="bg-white rounded-xl shadow-sm overflow-hidden">
-              <div class="border-b border-gray-200">
-                <nav class="flex">
-                  <a
-                    href={`/admin/certificates?event=${selectedEventId}&tab=eligible`}
-                    class={`px-6 py-4 text-sm font-medium border-b-2 ${tab === 'eligible' ? 'border-[#0B52AC] text-[#0B52AC]' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-                  >
-                    Eligible ({eligibleCount})
-                  </a>
-                  <a
-                    href={`/admin/certificates?event=${selectedEventId}&tab=generated`}
-                    class={`px-6 py-4 text-sm font-medium border-b-2 ${tab === 'generated' ? 'border-[#0B52AC] text-[#0B52AC]' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-                  >
-                    Generated ({totalCertificates})
-                  </a>
-                </nav>
-              </div>
-
-              {tab === 'eligible' && (
-                <div class="p-4">
-                  {eligibleCount > 0 && (
-                    <div class="mb-4 flex items-center justify-between">
-                      <p class="text-sm text-gray-600">
-                        {eligibleCount} attendee{eligibleCount !== 1 ? 's' : ''} eligible for certificates
-                      </p>
-                      <button
-                        id="generate-all-btn"
-                        class="px-4 py-2 bg-[#0B52AC] text-white font-semibold rounded-lg hover:bg-[#0C2044] transition-colors text-sm"
-                        data-event-id={selectedEventId}
-                      >
-                        Generate All Certificates
-                      </button>
-                    </div>
-                  )}
-
-                  {eligibleAttendees.length > 0 ? (
-                    <div class="overflow-x-auto">
-                      <table class="w-full">
-                        <thead class="bg-gray-50">
-                          <tr>
-                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">
-                              <input type="checkbox" id="select-all" class="rounded border-gray-300" />
-                            </th>
-                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Attendee</th>
-                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Checked In</th>
-                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Action</th>
-                          </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-200">
-                          {eligibleAttendees.map((attendee) => (
-                            <tr>
-                              <td class="px-4 py-4">
-                                <input
-                                  type="checkbox"
-                                  class="attendee-checkbox rounded border-gray-300"
-                                  data-ticket-id={attendee.ticket_id}
-                                  data-user-id={attendee.user_id || ''}
-                                  data-attendee-name={attendee.ticket?.attendee_name || attendee.user?.first_name + ' ' + attendee.user?.last_name}
-                                />
-                              </td>
-                              <td class="px-4 py-4">
-                                <div class="flex items-center gap-3">
-                                  <div class="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
-                                    <span class="text-sm font-semibold text-gray-600">
-                                      {(attendee.ticket?.attendee_name || attendee.user?.first_name || 'A').charAt(0)}
-                                    </span>
-                                  </div>
-                                  <div>
-                                    <p class="font-medium text-[#0C2044]">
-                                      {attendee.ticket?.attendee_name || `${attendee.user?.first_name} ${attendee.user?.last_name}`}
-                                    </p>
-                                    <p class="text-sm text-gray-500">
-                                      {attendee.ticket?.attendee_email || attendee.user?.email}
-                                    </p>
-                                  </div>
-                                </div>
-                              </td>
-                              <td class="px-4 py-4 text-sm text-gray-600">
-                                {formatDateTime(attendee.checked_in_at)}
-                              </td>
-                              <td class="px-4 py-4">
-                                <button
-                                  class="generate-btn px-3 py-1 bg-[#0B52AC] text-white text-sm font-semibold rounded-lg hover:bg-[#0C2044] transition-colors"
-                                  data-ticket-id={attendee.ticket_id}
-                                  data-event-id={selectedEventId}
-                                  data-user-id={attendee.user_id || ''}
-                                  data-attendee-name={attendee.ticket?.attendee_name || `${attendee.user?.first_name} ${attendee.user?.last_name}`}
-                                >
-                                  Generate
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : (
-                    <div class="text-center py-12">
-                      <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                        </svg>
-                      </div>
-                      <p class="text-gray-500">
-                        All checked-in attendees have received their certificates.
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {tab === 'generated' && (
-                <div class="p-4">
-                  {certificates.length > 0 && (
-                    <div class="mb-4 flex items-center justify-between">
-                      <p class="text-sm text-gray-600">
-                        {pendingCount} certificate{pendingCount !== 1 ? 's' : ''} pending to send
-                      </p>
-                      {pendingCount > 0 && (
-                        <button
-                          id="send-all-btn"
-                          class="px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors text-sm"
-                        >
-                          Send All Pending
-                        </button>
-                      )}
-                    </div>
-                  )}
-
-                  {certificates.length > 0 ? (
-                    <div class="overflow-x-auto">
-                      <table class="w-full">
-                        <thead class="bg-gray-50">
-                          <tr>
-                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Attendee</th>
-                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Certificate Code</th>
-                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Generated</th>
-                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
-                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-200">
-                          {certificates.map((cert) => (
-                            <tr>
-                              <td class="px-4 py-4">
-                                <div class="flex items-center gap-3">
-                                  <div class="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
-                                    <span class="text-sm font-semibold text-gray-600">
-                                      {cert.attendee_name?.charAt(0) || 'A'}
-                                    </span>
-                                  </div>
-                                  <div>
-                                    <p class="font-medium text-[#0C2044]">{cert.attendee_name}</p>
-                                    <p class="text-sm text-gray-500">{cert.user?.email}</p>
-                                  </div>
-                                </div>
-                              </td>
-                              <td class="px-4 py-4">
-                                <a
-                                  href={`/certificate/${cert.certificate_code}`}
-                                  target="_blank"
-                                  class="font-mono text-sm text-[#0B52AC] hover:underline"
-                                >
-                                  {cert.certificate_code}
-                                </a>
-                              </td>
-                              <td class="px-4 py-4 text-sm text-gray-600">
-                                {formatDateTime(cert.generated_at)}
-                              </td>
-                              <td class="px-4 py-4">
-                                {cert.sent_at ? (
-                                  <span class="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full">
-                                    <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                                      <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
-                                    </svg>
-                                    Sent
-                                  </span>
-                                ) : (
-                                  <span class="inline-flex items-center gap-1 px-2 py-1 bg-yellow-100 text-yellow-700 text-xs font-semibold rounded-full">
-                                    Pending
-                                  </span>
-                                )}
-                              </td>
-                              <td class="px-4 py-4">
-                                <div class="flex items-center gap-2">
-                                  {cert.pdf_url && (
-                                    <a
-                                      href={cert.pdf_url}
-                                      target="_blank"
-                                      class="px-3 py-1 bg-gray-100 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-200 transition-colors"
-                                    >
-                                      Download
-                                    </a>
-                                  )}
-                                  {!cert.sent_at && (
-                                    <button
-                                      class="send-btn px-3 py-1 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition-colors"
-                                      data-certificate-id={cert.id}
-                                    >
-                                      Send
-                                    </button>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : (
-                    <div class="text-center py-12">
-                      <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                        </svg>
-                      </div>
-                      <p class="text-gray-500">
-                        No certificates have been generated yet for this event.
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </>
-        ) : (
-          <!-- No Event Selected -->
-          <div class="bg-white rounded-xl shadow-sm p-12 text-center">
-            <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg class="w-10 h-10 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/>
-              </svg>
-            </div>
-            <h3 class="text-xl font-bold text-[#0C2044] mb-2">Select an Event</h3>
-            <p class="text-gray-500 max-w-md mx-auto">
-              Choose an event from the dropdown above to manage certificates for attendees.
-            </p>
-          </div>
-        )}
-      </div>
-    </main>
-
-    <Footer client:load />
-
-    <!-- Success Modal -->
-    <div id="success-modal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden">
-      <div class="bg-white rounded-2xl p-8 max-w-md mx-4 text-center">
-        <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <svg class="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-          </svg>
-        </div>
-        <h3 class="text-2xl font-bold text-[#0C2044] mb-2" id="modal-title">Success!</h3>
-        <p class="text-gray-600 mb-6" id="modal-message"></p>
-        <button
-          id="modal-close-btn"
-          class="px-6 py-2 bg-[#0B52AC] text-white font-semibold rounded-lg hover:bg-[#0C2044] transition-colors"
-        >
-          Continue
-        </button>
-      </div>
-    </div>
-
-    <script define:vars={{ selectedEventId }}>
-      const successModal = document.getElementById('success-modal');
-      const modalTitle = document.getElementById('modal-title');
-      const modalMessage = document.getElementById('modal-message');
-      const modalCloseBtn = document.getElementById('modal-close-btn');
-
-      // Show modal helper
-      function showModal(title, message) {
-        modalTitle.textContent = title;
-        modalMessage.textContent = message;
-        successModal.classList.remove('hidden');
-      }
-
-      // Close modal
-      modalCloseBtn?.addEventListener('click', () => {
-        successModal.classList.add('hidden');
-        window.location.reload();
-      });
-
-      // Generate single certificate
-      document.querySelectorAll('.generate-btn').forEach(btn => {
-        btn.addEventListener('click', async (e) => {
-          const { ticketId, eventId, userId, attendeeName } = e.target.dataset;
-          e.target.disabled = true;
-          e.target.textContent = 'Generating...';
-
-          try {
-            const response = await fetch('/api/admin/certificates/generate', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ ticketId, eventId, userId, attendeeName })
-            });
-
-            const result = await response.json();
-
-            if (result.success) {
-              showModal('Certificate Generated!', `Certificate for ${attendeeName} has been created.`);
-            } else {
-              alert(result.error || 'Failed to generate certificate');
-              e.target.disabled = false;
-              e.target.textContent = 'Generate';
-            }
-          } catch (err) {
-            console.error('Generate error:', err);
-            alert('Failed to generate certificate');
-            e.target.disabled = false;
-            e.target.textContent = 'Generate';
-          }
-        });
-      });
-
-      // Generate all certificates
-      document.getElementById('generate-all-btn')?.addEventListener('click', async (e) => {
-        const checkboxes = document.querySelectorAll('.attendee-checkbox');
-        const attendees = Array.from(checkboxes).map(cb => ({
-          ticketId: cb.dataset.ticketId,
-          userId: cb.dataset.userId,
-          attendeeName: cb.dataset.attendeeName
-        }));
-
-        if (attendees.length === 0) return;
-
-        e.target.disabled = true;
-        e.target.textContent = 'Generating...';
-
-        try {
-          const response = await fetch('/api/admin/certificates/generate-bulk', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ eventId: selectedEventId, attendees })
-          });
-
-          const result = await response.json();
-
-          if (result.success) {
-            showModal('Certificates Generated!', `${result.count} certificates have been created.`);
-          } else {
-            alert(result.error || 'Failed to generate certificates');
-          }
-        } catch (err) {
-          console.error('Bulk generate error:', err);
-          alert('Failed to generate certificates');
-        }
-
-        e.target.disabled = false;
-        e.target.textContent = 'Generate All Certificates';
-      });
-
-      // Send single certificate
-      document.querySelectorAll('.send-btn').forEach(btn => {
-        btn.addEventListener('click', async (e) => {
-          const certificateId = e.target.dataset.certificateId;
-          e.target.disabled = true;
-          e.target.textContent = 'Sending...';
-
-          try {
-            const response = await fetch('/api/admin/certificates/send', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ certificateId })
-            });
-
-            const result = await response.json();
-
-            if (result.success) {
-              showModal('Certificate Sent!', 'The certificate has been emailed to the attendee.');
-            } else {
-              alert(result.error || 'Failed to send certificate');
-              e.target.disabled = false;
-              e.target.textContent = 'Send';
-            }
-          } catch (err) {
-            console.error('Send error:', err);
-            alert('Failed to send certificate');
-            e.target.disabled = false;
-            e.target.textContent = 'Send';
-          }
-        });
-      });
-
-      // Select all checkbox
-      document.getElementById('select-all')?.addEventListener('change', (e) => {
-        document.querySelectorAll('.attendee-checkbox').forEach(cb => {
-          cb.checked = e.target.checked;
-        });
-      });
-    </script>
-  </body>
-</html>
+<AdminLayout title="Course Certificates">
+  <CourseCertificates
+    client:load
+    currentPath={currentPath}
+    user={{ name: userName, email: userEmail }}
+    attendees={attendees}
+    events={events || []}
+    eventFilter={eventFilter}
+    selectedEvent={selectedEvent}
+    stats={{
+      total: totalAttendees,
+      withCertificate,
+      sent: sentCount,
+    }}
+  />
+</AdminLayout>

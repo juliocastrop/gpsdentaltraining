@@ -3,6 +3,7 @@ import {
   getEventById,
   createCertificate,
   getCertificateByTicket,
+  isTicketCheckedIn,
 } from '../../../../lib/supabase/queries';
 
 // Generate a random alphanumeric string
@@ -39,6 +40,18 @@ export const POST: APIRoute = async ({ request }) => {
           error: 'Certificate already exists for this ticket',
           certificateId: existingCert.id,
           certificateCode: existingCert.certificate_code,
+        }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      // Verify attendance - certificate can only be generated for checked-in attendees
+      const isCheckedIn = await isTicketCheckedIn(ticketId);
+      if (!isCheckedIn) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'Certificate can only be generated for attendees who have checked in',
         }), {
           status: 400,
           headers: { 'Content-Type': 'application/json' },
