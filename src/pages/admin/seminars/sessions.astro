@@ -1,10 +1,10 @@
 ---
 /**
- * Admin Seminar Registrations - GPS Dental Training
- * View and manage seminar registrations
+ * Admin Seminar Sessions - GPS Dental Training
+ * View and manage seminar session schedules
  */
 import AdminLayout from '../../../layouts/AdminLayout.astro';
-import SeminarRegistrations from '../../../components/admin/SeminarRegistrations.tsx';
+import SeminarSessions from '../../../components/admin/SeminarSessions.tsx';
 import { supabaseAdmin } from '../../../lib/supabase/client';
 
 // Check if Clerk is configured
@@ -42,54 +42,53 @@ try {
 }
 
 if (clerkConfigured && (!userId || !isAdmin)) {
-  return Astro.redirect('/sign-in?redirect_url=/admin/seminars/registrations');
+  return Astro.redirect('/sign-in?redirect_url=/admin/seminars/sessions');
 }
 
 // Get filter params
 const seminarFilter = Astro.url.searchParams.get('seminar_id') || '';
-const statusFilter = Astro.url.searchParams.get('status') || '';
 
 // Fetch all seminars
 const { data: seminars } = await supabaseAdmin
   .from('seminars')
-  .select('id, title, year')
+  .select('id, title, year, total_sessions')
   .order('year', { ascending: false });
 
-// Build registrations query
-let registrationsQuery = supabaseAdmin
-  .from('seminar_registrations')
+// Fetch sessions for selected seminar or all active seminars
+let sessionsQuery = supabaseAdmin
+  .from('seminar_sessions')
   .select(`
     *,
-    user:user_id(id, first_name, last_name, email),
     seminar:seminar_id(id, title, year)
   `)
-  .order('created_at', { ascending: false });
+  .order('session_date', { ascending: true });
 
 if (seminarFilter) {
-  registrationsQuery = registrationsQuery.eq('seminar_id', seminarFilter);
+  sessionsQuery = sessionsQuery.eq('seminar_id', seminarFilter);
+} else {
+  // Show only sessions from active seminars
+  const activeSeminarIds = seminars?.filter(s => s.year >= new Date().getFullYear()).map(s => s.id) || [];
+  if (activeSeminarIds.length > 0) {
+    sessionsQuery = sessionsQuery.in('seminar_id', activeSeminarIds);
+  }
 }
 
-if (statusFilter) {
-  registrationsQuery = registrationsQuery.eq('status', statusFilter);
-}
-
-const { data: registrations, error } = await registrationsQuery;
+const { data: sessions, error } = await sessionsQuery.limit(100);
 
 if (error) {
-  console.error('Error fetching registrations:', error);
+  console.error('Error fetching sessions:', error);
 }
 
 const currentPath = Astro.url.pathname;
 ---
 
-<AdminLayout title="Seminar Registrations">
-  <SeminarRegistrations
+<AdminLayout title="Seminar Sessions">
+  <SeminarSessions
     client:load
     currentPath={currentPath}
     user={{ name: userName, email: userEmail }}
-    registrations={registrations || []}
+    sessions={sessions || []}
     seminars={seminars || []}
     seminarFilter={seminarFilter}
-    statusFilter={statusFilter}
   />
 </AdminLayout>

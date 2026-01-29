@@ -8,6 +8,7 @@ import { getSiteSettings } from '../../lib/data/site-settings-loader';
 const siteSettings = await getSiteSettings();
 import Navbar from '../../components/layout/Navbar';
 import Footer from '../../components/layout/Footer';
+import MakeupRequestForm from '../../components/seminars/MakeupRequestForm';
 import { supabaseAdmin } from '../../lib/supabase/client';
 import { getUserSeminarRegistrations } from '../../lib/supabase/queries';
 
@@ -47,6 +48,18 @@ if (userId) {
   if (user) {
     try {
       registrations = await getUserSeminarRegistrations(user.id);
+
+      // For each active registration, fetch the seminar sessions
+      for (const reg of registrations) {
+        if (reg.status === 'active' && reg.seminar_id) {
+          const { data: sessions } = await supabaseAdmin
+            .from('seminar_sessions')
+            .select('id, session_number, session_date, topic')
+            .eq('seminar_id', reg.seminar_id)
+            .order('session_number', { ascending: true });
+          reg.sessions = sessions || [];
+        }
+      }
     } catch (error) {
       console.error('Error fetching seminar registrations:', error);
     }
@@ -244,6 +257,19 @@ function calculateProgress(completed: number, total: number = 10): number {
                           </div>
                         </div>
                       )}
+
+                      <!-- Makeup Request Section -->
+                      <div class="mt-6 pt-6 border-t border-gray-100">
+                        <MakeupRequestForm
+                          client:load
+                          registrationId={registration.id}
+                          seminarId={registration.seminar_id}
+                          sessions={registration.sessions || []}
+                          attendedSessionIds={(registration.attendance || []).map((a: any) => a.session_id)}
+                          makeupUsed={registration.makeup_used}
+                          userId={userId}
+                        />
+                      </div>
                     </div>
                   </div>
                 );
@@ -340,7 +366,7 @@ function calculateProgress(completed: number, total: number = 10): number {
                   <svg class="w-4 h-4 text-[#DDC89D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
                   </svg>
-                  One makeup session allowed per calendar year
+                  One makeup session allowed per registration
                 </li>
                 <li class="flex items-center gap-2">
                   <svg class="w-4 h-4 text-[#DDC89D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -2222,9 +2222,9 @@ export async function recordSeminarAttendance(data: InsertSeminarAttendance) {
   if (registration.status !== 'active') throw new Error('Registration is not active');
   if (registration.sessions_remaining <= 0) throw new Error('No sessions remaining');
 
-  // If it's a makeup session, validate makeup_used is false
+  // If it's a makeup session, validate makeup_used is false (one per registration)
   if (data.is_makeup && registration.makeup_used) {
-    throw new Error('Makeup session already used for this year');
+    throw new Error('Makeup session already used for this registration');
   }
 
   // Create attendance record

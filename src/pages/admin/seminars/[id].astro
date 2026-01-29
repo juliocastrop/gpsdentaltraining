@@ -1,0 +1,139 @@
+---
+/**
+ * Admin Seminar Detail - GPS Dental Training
+ * View and edit individual seminar details
+ */
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import SeminarDetail from '../../../components/admin/SeminarDetail.tsx';
+import { supabaseAdmin } from '../../../lib/supabase/client';
+
+const { id } = Astro.params;
+
+// Check if Clerk is configured
+const clerkConfigured = !!import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY;
+
+// Get user from Clerk if available
+let userId: string | null = null;
+let isAdmin = false;
+let userName = 'Admin';
+let userEmail = 'admin@gpsdentaltraining.com';
+
+try {
+  if (clerkConfigured && Astro.locals.auth) {
+    const auth = Astro.locals.auth();
+    userId = auth?.userId || null;
+
+    if (userId) {
+      const { data: userData } = await supabaseAdmin
+        .from('users')
+        .select('role, first_name, last_name, email')
+        .eq('clerk_id', userId)
+        .single();
+
+      isAdmin = userData?.role === 'admin';
+      if (userData?.first_name) {
+        userName = `${userData.first_name} ${userData.last_name || ''}`.trim();
+      }
+      if (userData?.email) {
+        userEmail = userData.email;
+      }
+    }
+  }
+} catch {
+  isAdmin = true;
+}
+
+if (clerkConfigured && (!userId || !isAdmin)) {
+  return Astro.redirect('/sign-in?redirect_url=/admin/seminars/' + id);
+}
+
+// Fetch seminar details
+let seminar: any = null;
+let sessions: any[] = [];
+let registrations: any[] = [];
+let moderators: any[] = [];
+let allSpeakers: any[] = [];
+
+try {
+  // Get seminar
+  const { data: seminarData, error: seminarError } = await supabaseAdmin
+    .from('seminars')
+    .select('*')
+    .eq('id', id)
+    .single();
+
+  if (seminarError || !seminarData) {
+    return Astro.redirect('/admin/seminars?error=seminar_not_found');
+  }
+
+  seminar = seminarData;
+
+  // Get sessions for this seminar
+  const { data: sessionsData } = await supabaseAdmin
+    .from('seminar_sessions')
+    .select('*')
+    .eq('seminar_id', id)
+    .order('session_number', { ascending: true });
+
+  sessions = sessionsData || [];
+
+  // Get registrations
+  const { data: registrationsData } = await supabaseAdmin
+    .from('seminar_registrations')
+    .select(`
+      id,
+      user_id,
+      status,
+      sessions_completed,
+      sessions_remaining,
+      registered_at,
+      user:users(id, first_name, last_name, email)
+    `)
+    .eq('seminar_id', id)
+    .order('registered_at', { ascending: false })
+    .limit(100);
+
+  registrations = registrationsData || [];
+
+  // Get moderators for this seminar
+  const { data: moderatorsData } = await supabaseAdmin
+    .from('seminar_moderators')
+    .select(`
+      id,
+      role,
+      display_order,
+      speaker:speakers(id, name, title, photo_url)
+    `)
+    .eq('seminar_id', id)
+    .order('display_order', { ascending: true });
+
+  moderators = moderatorsData || [];
+
+  // Get all speakers for picker
+  const { data: speakersData } = await supabaseAdmin
+    .from('speakers')
+    .select('id, name, title, photo_url')
+    .order('name', { ascending: true });
+
+  allSpeakers = speakersData || [];
+
+} catch (error) {
+  console.error('Error fetching seminar details:', error);
+  return Astro.redirect('/admin/seminars?error=fetch_failed');
+}
+
+const currentPath = Astro.url.pathname;
+---
+
+<AdminLayout title={seminar?.title || 'Seminar Details'}>
+  <SeminarDetail
+    client:load
+    currentPath={currentPath}
+    user={{ name: userName, email: userEmail }}
+    seminar={seminar}
+    sessions={sessions}
+    registrations={registrations}
+    moderators={moderators}
+    allSpeakers={allSpeakers}
+  />
+</AdminLayout>

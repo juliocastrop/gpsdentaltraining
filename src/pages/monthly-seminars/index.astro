@@ -1,28 +1,21 @@
 ---
 /**
  * Monthly Seminars Main Page - GPS Dental Training
- * Product-style page for the current active seminar season
- *
- * Structure (matching courses/[slug].astro):
- * 1. Hero with background image
- * 2. Program Description
- * 3. Moderator Profile
- * 4. About Sessions
- * 5. Session Agenda
- * 6. Membership Policy
- * 7. Contact Information
- * 8. Accreditation
- *
- * Sidebar (sticky):
- * - Registration Card with price
- * - Quick Info
- * - Questions?
+ * Template router: delegates rendering to Modern or Classic template
+ * based on seminar.layout_template column
  */
-import PageLayout from '../../layouts/PageLayout.astro';
+import '../../styles/global.css';
+import { getSiteSettings } from '../../lib/data/site-settings-loader';
+const siteSettings = await getSiteSettings();
 import { supabaseAdmin } from '../../lib/supabase/client';
 
-// Fetch the current active seminar season
-const { data: seminar, error } = await supabaseAdmin
+// Template components
+import ModernSeminarDetail from '../../components/templates/seminars/ModernSeminarDetail.astro';
+import ClassicSeminarDetail from '../../components/templates/seminars/ClassicSeminarDetail.astro';
+
+// Fetch the current active seminar season (current year or most recent)
+const currentYear = new Date().getFullYear();
+const { data: seminar, error: seminarError } = await supabaseAdmin
   .from('seminars')
   .select(`
     *,
@@ -41,10 +34,14 @@ const { data: seminar, error } = await supabaseAdmin
   .limit(1)
   .single();
 
-// Fetch moderators for this seminar
+if (seminarError) {
+  console.error('Error fetching seminar:', seminarError);
+}
+
+// Fetch moderators/speakers for this seminar
 let moderators: any[] = [];
 if (seminar) {
-  const { data: moderatorData } = await supabaseAdmin
+  const { data: moderatorRelations } = await supabaseAdmin
     .from('seminar_moderators')
     .select(`
       role,
@@ -52,6 +49,7 @@ if (seminar) {
       speaker:speakers (
         id,
         name,
+        slug,
         title,
         bio,
         photo_url,
@@ -59,789 +57,126 @@ if (seminar) {
       )
     `)
     .eq('seminar_id', seminar.id)
-    .order('display_order', { ascending: true });
+    .order('display_order');
 
-  moderators = moderatorData || [];
-}
-
-// Helper functions
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
-
-function formatSessionDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString('en-US', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  });
-}
-
-function formatTime(timeStr: string | null): string {
-  if (!timeStr) return '';
-  const [hours, minutes] = timeStr.split(':');
-  const hour = parseInt(hours);
-  const ampm = hour >= 12 ? 'PM' : 'AM';
-  const hour12 = hour % 12 || 12;
-  return `${hour12}:${minutes} ${ampm}`;
+  moderators = (moderatorRelations || [])
+    .map((r: any) => ({ ...r.speaker, role: r.role }))
+    .filter((m: any) => m !== null);
 }
 
 // Sort sessions by session_number
 const sessions = seminar?.seminar_sessions?.sort((a: any, b: any) => a.session_number - b.session_number) || [];
 
-// Get next upcoming session
+// Calculate session stats
 const now = new Date();
-const nextSession = sessions.find((s: any) => new Date(s.session_date) >= now);
+const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+const upcomingSessions = sessions.filter((s: any) => new Date(s.session_date) >= today);
+const completedSessions = sessions.filter((s: any) => new Date(s.session_date) < today);
+const nextSession = upcomingSessions[0];
 
-// Default agenda items if not set
+// Calculate next certificate date
+const currentMonth = now.getMonth();
+const nextCertificateDate = currentMonth < 6
+  ? `June 30, ${now.getFullYear()}`
+  : `December 31, ${now.getFullYear()}`;
+const sessionsBeforeCertificate = upcomingSessions.filter((s: any) => {
+  const sessionDate = new Date(s.session_date);
+  const certDate = currentMonth < 6
+    ? new Date(now.getFullYear(), 5, 30)
+    : new Date(now.getFullYear(), 11, 31);
+  return sessionDate <= certDate;
+}).length;
+
+// Default values for optional fields
 const agendaItems = seminar?.agenda_items || [
-  { time: "5:45 PM - 6:00 PM", title: "Meet and Greet", description: "Networking and introductions" },
-  { time: "6:00 PM - 7:45 PM", title: "Main Session", description: "Core content and discussions" },
-  { time: "7:45 PM - 8:00 PM", title: "Summary & Conclusions", description: "Key takeaways and Q&A" }
+  { time: '5:45 PM - 6:00 PM', title: 'Meet and Greet', description: 'Networking and introductions' },
+  { time: '6:00 PM - 7:45 PM', title: 'Main Session', description: 'Core content and discussions' },
+  { time: '7:45 PM - 8:00 PM', title: 'Summary & Conclusions', description: 'Key takeaways and Q&A' },
 ];
 
-// Default benefits
-const defaultBenefits = [
-  "Literature Review Sessions",
-  "Case Discussions and Presentations",
-  "Treatment Planning Seminars",
-  "Surgical Seminars",
-  "Peer Networking Opportunities"
+const benefits = seminar?.benefits || [
+  'Interactive academic discussions',
+  'Evidence-based clinical debates',
+  'Treatment planning seminars',
+  'Literature review sessions',
+  'Networking with peers',
+  '20 CE credits upon completion',
 ];
 
-const benefits = seminar?.benefits || defaultBenefits;
+const certificateDates = seminar?.certificate_dates || ['June 30', 'December 31'];
 
-// Page metadata
-const pageTitle = seminar?.meta_title || `GPS Monthly Seminars ${seminar?.year || ''}`;
-const pageDescription = seminar?.meta_description || `GPS Monthly Seminars - ${seminar?.year} - A 10-session cycle dedicated to Literature Review, Case Discussions, and Treatment Planning. Earn ${seminar?.total_credits || 20} CE credits.`;
-const pageOgImage = seminar?.og_image_url || seminar?.hero_image_url || '/og-default.jpg';
+const cleanTitle = seminar?.title?.replace('[TEST] ', '') || 'Monthly Seminars';
+
+// Determine which template to use
+const layoutTemplate = seminar?.layout_template || 'modern';
+
+// Template props
+const templateProps = {
+  seminar,
+  moderators,
+  sessions,
+  siteSettings,
+  cleanTitle,
+  agendaItems,
+  benefits,
+  certificateDates,
+  url: Astro.url,
+  // Session transparency info
+  sessionStats: {
+    total: sessions.length,
+    completed: completedSessions.length,
+    upcoming: upcomingSessions.length,
+    nextSession,
+    nextCertificateDate,
+    sessionsBeforeCertificate,
+  },
+};
+
+// Generate meta description
+const metaDescription = seminar?.description
+  ? seminar.description.replace(/<[^>]*>/g, '').substring(0, 160)
+  : `GPS Monthly Seminars - A 10-session cycle dedicated to Literature Review, Case Discussions, and Treatment Planning. Earn 20 CE credits.`;
 ---
 
-<PageLayout
-  title={pageTitle}
-  description={pageDescription}
-  ogImage={pageOgImage}
-  showHero={false}
-  transparentNavbar={true}
->
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content={metaDescription} />
+
+    <link rel="icon" href={siteSettings.favicon_url} />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={Astro.url.href} />
+    <meta property="og:title" content={`${cleanTitle} | GPS Dental Training`} />
+    <meta property="og:description" content={metaDescription} />
+    <meta property="og:image" content={seminar?.featured_image_url || '/og-default.jpg'} />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={`${cleanTitle} | GPS Dental Training`} />
+    <meta name="twitter:description" content={metaDescription} />
+    <meta name="twitter:image" content={seminar?.featured_image_url || '/og-default.jpg'} />
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+
+    <title>{cleanTitle} | GPS Dental Training</title>
+  </head>
+
+  <body class="min-h-screen flex flex-col bg-white">
     {seminar ? (
-      <>
-        <!-- Hero Section - Following standard design pattern -->
-        <section class="relative min-h-[50vh] lg:min-h-[60vh] flex items-center bg-gradient-to-br from-[#0C2044] via-[#173D84] to-[#0C2044] overflow-hidden">
-          <!-- Background Image (if available) -->
-          {seminar.hero_image_url && (
-            <div class="absolute inset-0">
-              <img
-                src={seminar.hero_image_url}
-                alt={seminar.title}
-                class="w-full h-full object-cover"
-              />
-              <div class="absolute inset-0 bg-gradient-to-r from-[#0C2044]/95 via-[#13326A]/85 to-[#173D84]/70"></div>
-            </div>
-          )}
-
-          <!-- Decorative Elements -->
-          <div class="absolute inset-0 opacity-10">
-            <div class="absolute top-20 left-10 w-72 h-72 bg-[#DDC89D] rounded-full blur-3xl"></div>
-            <div class="absolute bottom-20 right-10 w-96 h-96 bg-[#26ACF5] rounded-full blur-3xl"></div>
-            <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-white/5 rounded-full"></div>
-          </div>
-
-          <!-- Grid Pattern -->
-          <div class="absolute inset-0 opacity-5">
-            <div class="absolute inset-0" style="background-image: radial-gradient(circle at 1px 1px, white 1px, transparent 0); background-size: 40px 40px;"></div>
-          </div>
-
-          <div class="container mx-auto px-4 lg:px-8 max-w-7xl relative z-10 py-24 lg:py-32">
-            <div class="max-w-3xl">
-              <!-- Breadcrumb -->
-              <nav class="flex items-center gap-2 text-white/60 text-sm mb-6">
-                <a href="/" class="hover:text-white transition-colors">Home</a>
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-                </svg>
-                <span class="text-white">Monthly Seminars</span>
-              </nav>
-
-              <!-- Badge -->
-              <div class="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 text-white px-4 py-2 rounded-full text-sm mb-6">
-                <svg class="w-5 h-5 text-[#DDC89D]" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3z"/>
-                </svg>
-                {seminar.total_sessions || 10}-Session Program • Once a Month
-              </div>
-
-              <!-- Title -->
-              <h1 class="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white mb-6 leading-tight font-heading">
-                {seminar.title.split(' ').slice(0, -1).join(' ')}
-                <span class="text-[#DDC89D]"> {seminar.title.split(' ').slice(-1)}</span>
-              </h1>
-
-              <!-- Description -->
-              <p class="text-xl text-white/80 mb-8 max-w-2xl leading-relaxed">
-                {seminar.subtitle || `A ${seminar.total_sessions || 10}-session cycle dedicated to Literature Review, Case Discussions, and Treatment Planning. Earn ${seminar.total_credits || 20} CE credits.`}
-              </p>
-
-              <!-- Stats -->
-              <div class="flex flex-wrap gap-6 lg:gap-10">
-                <div class="text-center">
-                  <p class="text-3xl lg:text-4xl font-bold text-white">{seminar.total_sessions || 10}</p>
-                  <p class="text-sm text-white/60 uppercase tracking-wide">Sessions</p>
-                </div>
-                <div class="text-center">
-                  <p class="text-3xl lg:text-4xl font-bold text-[#DDC89D]">{seminar.total_credits || 20}</p>
-                  <p class="text-sm text-white/60 uppercase tracking-wide">CE Credits</p>
-                </div>
-                <div class="text-center">
-                  <p class="text-3xl lg:text-4xl font-bold text-white">{seminar.credits_per_session || 2}</p>
-                  <p class="text-sm text-white/60 uppercase tracking-wide">Credits/Session</p>
-                </div>
-                <div class="text-center">
-                  <p class="text-3xl lg:text-4xl font-bold text-white">{formatCurrency(seminar.price || 750)}</p>
-                  <p class="text-sm text-white/60 uppercase tracking-wide">Enrollment</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Wave Divider -->
-          <div class="absolute bottom-0 left-0 right-0">
-            <svg viewBox="0 0 1440 100" fill="none" xmlns="http://www.w3.org/2000/svg" class="w-full h-auto">
-              <path d="M0 50L48 45.7C96 41 192 33 288 35.3C384 37 480 49 576 55.3C672 62 768 62 864 55.3C960 49 1056 35 1152 30.8C1248 27 1344 33 1392 36.2L1440 39V100H1392C1344 100 1248 100 1152 100C1056 100 960 100 864 100C768 100 672 100 576 100C480 100 384 100 288 100C192 100 96 100 48 100H0V50Z" fill="#F8F9FA"/>
-            </svg>
-          </div>
-        </section>
-
-        <!-- Share Buttons (moved below hero) -->
-        <div class="bg-[#F8F9FA] pt-0 pb-4">
-          <div class="container mx-auto px-4 lg:px-8 max-w-7xl">
-            <div class="flex items-center gap-3">
-              <span class="text-gray-500 text-sm">Share:</span>
-              <a
-                href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(Astro.url.href)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                class="w-10 h-10 bg-white hover:bg-gray-50 rounded-full flex items-center justify-center text-gray-600 hover:text-[#0B52AC] transition-colors shadow-sm"
-                aria-label="Share on Facebook"
-              >
-                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-                </svg>
-              </a>
-              <a
-                href={`https://twitter.com/intent/tweet?url=${encodeURIComponent(Astro.url.href)}&text=${encodeURIComponent(seminar.title)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                class="w-10 h-10 bg-white hover:bg-gray-50 rounded-full flex items-center justify-center text-gray-600 hover:text-[#0B52AC] transition-colors shadow-sm"
-                aria-label="Share on X"
-              >
-                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
-                </svg>
-              </a>
-              <a
-                href={`https://www.linkedin.com/shareArticle?mini=true&url=${encodeURIComponent(Astro.url.href)}&title=${encodeURIComponent(seminar.title)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                class="w-10 h-10 bg-white hover:bg-gray-50 rounded-full flex items-center justify-center text-gray-600 hover:text-[#0B52AC] transition-colors shadow-sm"
-                aria-label="Share on LinkedIn"
-              >
-                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
-                </svg>
-              </a>
-              <a
-                href={`mailto:?subject=${encodeURIComponent(seminar.title)}&body=${encodeURIComponent(`Check out GPS Monthly Seminars: ${Astro.url.href}`)}`}
-                class="w-10 h-10 bg-white hover:bg-gray-50 rounded-full flex items-center justify-center text-gray-600 hover:text-[#0B52AC] transition-colors shadow-sm"
-                aria-label="Share via Email"
-              >
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
-                </svg>
-              </a>
-            </div>
-          </div>
-        </div>
-
-        <!-- Main Content -->
-        <main class="flex-1 bg-[#F8F9FA]">
-          <div class="container mx-auto px-4 lg:px-8 max-w-7xl py-12 lg:py-16">
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-12">
-
-              <!-- Left Column - Main Content -->
-              <div class="lg:col-span-2 space-y-10 lg:space-y-12">
-
-                <!-- 1. Program Description -->
-                <div class="bg-white rounded-2xl shadow-lg p-8 lg:p-12">
-                  <h2 class="text-2xl lg:text-3xl font-bold text-[#0C2044] mb-8 flex items-center gap-4">
-                    <span class="w-12 h-12 bg-gradient-to-br from-[#DDC89D] to-[#BFAC87] rounded-xl flex items-center justify-center shadow-lg">
-                      <svg class="w-6 h-6 text-[#0C2044]" fill="currentColor" viewBox="0 0 20 20">
-                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
-                      </svg>
-                    </span>
-                    <span>About the Program</span>
-                  </h2>
-
-                  {seminar.program_description ? (
-                    <div class="prose prose-lg max-w-none text-gray-700" set:html={seminar.program_description} />
-                  ) : (
-                    <div class="space-y-4 text-gray-700 leading-relaxed">
-                      <p>
-                        Engage in a <strong>{seminar.total_sessions || 10}-session cycle</strong> dedicated to Literature Review,
-                        Case Discussions, and Treatment Planning Seminars. Our monthly seminars provide an
-                        exceptional opportunity for dental professionals to stay current with the latest research
-                        and collaborate with peers in a supportive learning environment.
-                      </p>
-                      <p>
-                        Each session is designed to enhance your clinical knowledge and practical skills through
-                        interactive discussions, case presentations, and evidence-based practice reviews.
-                      </p>
-                    </div>
-                  )}
-
-                  <!-- Program Features/Benefits -->
-                  {benefits.length > 0 && (
-                    <div class="mt-8 pt-8 border-t border-gray-100">
-                      <h3 class="font-semibold text-[#0C2044] mb-4">Topics Include:</h3>
-                      <ul class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {benefits.map((benefit: string) => (
-                          <li class="flex items-center gap-3">
-                            <span class="w-6 h-6 bg-[#DDC89D]/20 rounded-full flex items-center justify-center flex-shrink-0">
-                              <svg class="w-4 h-4 text-[#DDC89D]" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
-                              </svg>
-                            </span>
-                            <span class="text-gray-700">{benefit}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-
-                <!-- 2. Moderator Section -->
-                {moderators.length > 0 && (
-                  <div class="bg-white rounded-2xl shadow-lg p-8 lg:p-12">
-                    <h2 class="text-2xl lg:text-3xl font-bold text-[#0C2044] mb-8 flex items-center gap-4">
-                      <span class="w-12 h-12 bg-gradient-to-br from-[#0B52AC] to-[#173D84] rounded-xl flex items-center justify-center shadow-lg">
-                        <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
-                          <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/>
-                        </svg>
-                      </span>
-                      <span>{moderators.length > 1 ? 'Program Moderators' : 'Program Moderator'}</span>
-                    </h2>
-
-                    <div class="space-y-8">
-                      {moderators.map((mod: any) => (
-                        <div class="flex flex-col md:flex-row gap-6 p-6 bg-[#F8F9FA] rounded-xl hover:shadow-md transition-shadow">
-                          <!-- Photo -->
-                          <div class="flex-shrink-0">
-                            {mod.speaker?.photo_url ? (
-                              <img
-                                src={mod.speaker.photo_url}
-                                alt={mod.speaker.name}
-                                class="w-32 h-32 md:w-40 md:h-40 rounded-xl object-cover shadow-lg"
-                              />
-                            ) : (
-                              <div class="w-32 h-32 md:w-40 md:h-40 rounded-xl bg-gradient-to-br from-[#173D84] to-[#0C2044] flex items-center justify-center">
-                                <span class="text-4xl font-bold text-white">
-                                  {mod.speaker?.name?.split(' ').map((n: string) => n[0]).join('').substring(0, 2)}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-
-                          <!-- Info -->
-                          <div class="flex-1">
-                            <div class="flex items-center gap-3 mb-1">
-                              <h3 class="text-xl font-bold text-[#0C2044]">
-                                {mod.speaker?.name}
-                              </h3>
-                              {mod.role && mod.role !== 'moderator' && (
-                                <span class="text-xs bg-[#DDC89D]/20 text-[#0C2044] px-2 py-1 rounded-full capitalize">
-                                  {mod.role.replace('_', ' ')}
-                                </span>
-                              )}
-                            </div>
-                            {mod.speaker?.title && (
-                              <p class="text-[#DDC89D] font-semibold mb-3">{mod.speaker.title}</p>
-                            )}
-                            {mod.speaker?.bio && (
-                              <p class="text-gray-600 leading-relaxed">{mod.speaker.bio}</p>
-                            )}
-
-                            <!-- Social Links -->
-                            {mod.speaker?.social_links && Object.keys(mod.speaker.social_links).length > 0 && (
-                              <div class="flex gap-3 mt-4">
-                                {mod.speaker.social_links.linkedin && (
-                                  <a href={mod.speaker.social_links.linkedin} target="_blank" rel="noopener noreferrer" class="text-[#0B52AC] hover:text-[#0C2044] transition-colors">
-                                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                                      <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
-                                    </svg>
-                                  </a>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <!-- 3. Session Agenda (Daily Schedule) -->
-                <div class="bg-white rounded-2xl shadow-lg p-8 lg:p-12">
-                  <h2 class="text-2xl lg:text-3xl font-bold text-[#0C2044] mb-8 flex items-center gap-4">
-                    <span class="w-12 h-12 bg-gradient-to-br from-[#DDC89D] to-[#BFAC87] rounded-xl flex items-center justify-center shadow-lg">
-                      <svg class="w-6 h-6 text-[#0C2044]" fill="currentColor" viewBox="0 0 20 20">
-                        <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/>
-                      </svg>
-                    </span>
-                    <span>Session Agenda</span>
-                  </h2>
-
-                  <p class="text-gray-600 mb-6">
-                    Each session follows a structured format designed to maximize learning and interaction:
-                  </p>
-
-                  <div class="space-y-1">
-                    {agendaItems.map((item: any) => (
-                      <div class="flex gap-4 p-4 rounded-xl transition-colors hover:bg-[#F8F9FA]">
-                        <!-- Time -->
-                        <div class="flex-shrink-0 w-36 md:w-44">
-                          <span class="text-sm font-semibold text-[#0B52AC] bg-[#0B52AC]/10 px-3 py-1.5 rounded-full inline-block">
-                            {item.time}
-                          </span>
-                        </div>
-
-                        <!-- Content -->
-                        <div class="flex-1 min-w-0">
-                          <h4 class="font-semibold text-[#0C2044]">{item.title}</h4>
-                          {item.description && (
-                            <p class="text-gray-600 text-sm mt-1">{item.description}</p>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <!-- 4. Upcoming Sessions Schedule -->
-                {sessions.length > 0 && (
-                  <div class="bg-gradient-to-br from-[#0C2044] to-[#173D84] rounded-2xl shadow-xl p-8 lg:p-12 text-white relative overflow-hidden">
-                    <!-- Decorative element -->
-                    <div class="absolute top-0 right-0 w-64 h-64 bg-[#DDC89D] rounded-full opacity-5 translate-x-1/2 -translate-y-1/2"></div>
-
-                    <h2 class="text-2xl lg:text-3xl font-bold text-white mb-8 flex items-center gap-4 relative z-10">
-                      <span class="w-12 h-12 bg-gradient-to-br from-[#DDC89D] to-[#BFAC87] rounded-xl flex items-center justify-center shadow-lg">
-                        <svg class="w-6 h-6 text-[#0C2044]" fill="currentColor" viewBox="0 0 20 20">
-                          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                        </svg>
-                      </span>
-                      <span>{seminar.year} Session Schedule</span>
-                    </h2>
-
-                    <div class="space-y-3 relative z-10">
-                      {sessions.map((session: any) => {
-                        const sessionDate = new Date(session.session_date);
-                        const isPast = sessionDate < now;
-                        const isNext = nextSession && session.id === nextSession.id;
-
-                        return (
-                          <div class={`flex items-center gap-4 p-4 rounded-xl transition-colors ${isNext ? 'bg-[#DDC89D]/20 ring-2 ring-[#DDC89D]' : 'bg-white/5 hover:bg-white/10'}`}>
-                            <!-- Session Number -->
-                            <div class={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 font-bold text-lg ${isPast ? 'bg-green-500/20 text-green-300' : isNext ? 'bg-[#DDC89D] text-[#0C2044]' : 'bg-white/10 text-white/60'}`}>
-                              {isPast ? (
-                                <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
-                                  <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
-                                </svg>
-                              ) : (
-                                session.session_number
-                              )}
-                            </div>
-
-                            <!-- Session Info -->
-                            <div class="flex-1 min-w-0">
-                              <div class="flex items-center gap-2">
-                                <p class={`font-semibold ${isPast ? 'text-white/50' : 'text-white'}`}>
-                                  Session {session.session_number}
-                                </p>
-                                {isNext && (
-                                  <span class="text-xs bg-[#DDC89D] text-[#0C2044] px-2 py-0.5 rounded-full font-bold">
-                                    NEXT
-                                  </span>
-                                )}
-                              </div>
-                              {session.topic && (
-                                <p class={`text-sm ${isPast ? 'text-white/40' : 'text-white/70'}`}>
-                                  {session.topic}
-                                </p>
-                              )}
-                            </div>
-
-                            <!-- Date -->
-                            <div class={`text-right flex-shrink-0 ${isPast ? 'text-white/40' : 'text-white/80'}`}>
-                              <p class="font-medium text-sm">
-                                {sessionDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                              </p>
-                              <p class="text-xs text-white/50">
-                                {sessionDate.toLocaleDateString('en-US', { weekday: 'short' })}
-                              </p>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    <!-- Credits per session note -->
-                    <div class="mt-6 pt-6 border-t border-white/10 relative z-10">
-                      <p class="text-white/70 text-sm flex items-center gap-2">
-                        <svg class="w-5 h-5 text-[#DDC89D]" fill="currentColor" viewBox="0 0 20 20">
-                          <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
-                        </svg>
-                        Each session awards <strong class="text-[#DDC89D]">{seminar.credits_per_session || 2} CE credits</strong> upon attendance
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                <!-- 5. Membership Policy -->
-                <div class="bg-white rounded-2xl shadow-lg p-8 lg:p-12">
-                  <h2 class="text-2xl lg:text-3xl font-bold text-[#0C2044] mb-8 flex items-center gap-4">
-                    <span class="w-12 h-12 bg-gradient-to-br from-[#26ACF5] to-[#0B52AC] rounded-xl flex items-center justify-center shadow-lg">
-                      <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
-                        <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a1 1 0 110 2h-3a1 1 0 01-1-1v-2a1 1 0 00-1-1H9a1 1 0 00-1 1v2a1 1 0 01-1 1H4a1 1 0 110-2V4zm3 1h2v2H7V5zm2 4H7v2h2V9zm2-4h2v2h-2V5zm2 4h-2v2h2V9z" clip-rule="evenodd"/>
-                      </svg>
-                    </span>
-                    <span>Membership Policy</span>
-                  </h2>
-
-                  <div class="space-y-4">
-                    {seminar.membership_policy ? (
-                      <div class="prose max-w-none text-gray-700" set:html={seminar.membership_policy} />
-                    ) : (
-                      <>
-                        <div class="flex items-start gap-4 p-4 bg-[#F8F9FA] rounded-xl">
-                          <div class="w-10 h-10 bg-[#0B52AC]/10 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
-                            <svg class="w-5 h-5 text-[#0B52AC]" fill="currentColor" viewBox="0 0 20 20">
-                              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clip-rule="evenodd"/>
-                            </svg>
-                          </div>
-                          <div>
-                            <h4 class="font-semibold text-[#0C2044] mb-1">Membership Start</h4>
-                            <p class="text-gray-600">Membership begins at the next available session and concludes after 10 consecutive sessions.</p>
-                          </div>
-                        </div>
-
-                        <div class="flex items-start gap-4 p-4 bg-[#F8F9FA] rounded-xl">
-                          <div class="w-10 h-10 bg-[#DDC89D]/20 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
-                            <svg class="w-5 h-5 text-[#DDC89D]" fill="currentColor" viewBox="0 0 20 20">
-                              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                            </svg>
-                          </div>
-                          <div>
-                            <h4 class="font-semibold text-[#0C2044] mb-1">Attendance Requirement</h4>
-                            <p class="text-gray-600">Attendance is mandatory to receive CE credits for each session.</p>
-                          </div>
-                        </div>
-
-                        <div class="flex items-start gap-4 p-4 bg-[#F8F9FA] rounded-xl">
-                          <div class="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
-                            <svg class="w-5 h-5 text-amber-600" fill="currentColor" viewBox="0 0 20 20">
-                              <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/>
-                            </svg>
-                          </div>
-                          <div>
-                            <h4 class="font-semibold text-[#0C2044] mb-1">Make-up Sessions</h4>
-                            <p class="text-gray-600">Only <strong>ONE</strong> make-up session is allowed per calendar year.</p>
-                          </div>
-                        </div>
-
-                        <div class="flex items-start gap-4 p-4 bg-[#F8F9FA] rounded-xl">
-                          <div class="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
-                            <svg class="w-5 h-5 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
-                              <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3z"/>
-                            </svg>
-                          </div>
-                          <div>
-                            <h4 class="font-semibold text-[#0C2044] mb-1">Certificate Distribution</h4>
-                            <p class="text-gray-600">Certificates are issued bi-annually on <strong>June 30</strong> and <strong>December 31</strong>.</p>
-                          </div>
-                        </div>
-                      </>
-                    )}
-
-                    <!-- Refund Policy Warning -->
-                    <div class="mt-6 p-4 bg-red-50 border border-red-100 rounded-xl">
-                      <div class="flex items-start gap-3">
-                        <svg class="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                          <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
-                        </svg>
-                        <p class="text-sm text-red-700">
-                          <strong>Important:</strong> {seminar.refund_policy || 'Tuition is non-refundable and non-transferable once enrolled.'}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- 6. Contact Information -->
-                <div class="bg-white rounded-2xl shadow-lg p-8 lg:p-12">
-                  <h2 class="text-2xl lg:text-3xl font-bold text-[#0C2044] mb-8 flex items-center gap-4">
-                    <span class="w-12 h-12 bg-gradient-to-br from-[#26ACF5] to-[#0B52AC] rounded-xl flex items-center justify-center shadow-lg">
-                      <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/>
-                        <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/>
-                      </svg>
-                    </span>
-                    <span>Contact Information</span>
-                  </h2>
-
-                  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <!-- Email -->
-                    <div class="flex items-start gap-4 p-4 bg-[#F8F9FA] rounded-xl">
-                      <div class="w-12 h-12 bg-[#0B52AC] rounded-lg flex items-center justify-center flex-shrink-0">
-                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
-                        </svg>
-                      </div>
-                      <div>
-                        <h4 class="font-semibold text-[#0C2044] mb-1">Email Us</h4>
-                        <a href={`mailto:${seminar.contact_email || 'gpsdentaltraining@gaprostho.com'}`} class="text-[#0B52AC] hover:underline">
-                          {seminar.contact_email || 'gpsdentaltraining@gaprostho.com'}
-                        </a>
-                      </div>
-                    </div>
-
-                    <!-- Address -->
-                    <div class="flex items-start gap-4 p-4 bg-[#F8F9FA] rounded-xl">
-                      <div class="w-12 h-12 bg-[#0B52AC] rounded-lg flex items-center justify-center flex-shrink-0">
-                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
-                        </svg>
-                      </div>
-                      <div>
-                        <h4 class="font-semibold text-[#0C2044] mb-1">Training Center</h4>
-                        <p class="text-gray-600">
-                          {seminar.address || '6320 Sugarloaf Parkway\nDuluth, GA 30097'}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- 7. Accreditation -->
-                <div class="bg-white rounded-2xl shadow-lg p-8 lg:p-12">
-                  <h2 class="text-2xl lg:text-3xl font-bold text-[#0C2044] mb-8 flex items-center gap-4">
-                    <span class="w-12 h-12 bg-gradient-to-br from-[#0B52AC] to-[#173D84] rounded-xl flex items-center justify-center shadow-lg">
-                      <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
-                        <path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                      </svg>
-                    </span>
-                    <span>Accreditation</span>
-                  </h2>
-
-                  <div class="flex flex-wrap items-center justify-center gap-8 lg:gap-12">
-                    <!-- PACE Logo -->
-                    <div class="flex flex-col items-center gap-2">
-                      <div class="w-24 h-24 bg-[#F8F9FA] rounded-xl flex items-center justify-center p-4">
-                        {seminar.accreditation_logo_url ? (
-                          <img src={seminar.accreditation_logo_url} alt="PACE Approved" class="max-w-full max-h-full object-contain" />
-                        ) : (
-                          <img src="/pace-logo.png" alt="PACE - Program Approval for Continuing Education" class="max-w-full max-h-full object-contain" />
-                        )}
-                      </div>
-                      <span class="text-xs text-gray-500 text-center">PACE Approved</span>
-                    </div>
-
-                    <!-- GPS Logo -->
-                    <div class="flex flex-col items-center gap-2">
-                      <div class="w-24 h-24 bg-[#F8F9FA] rounded-xl flex items-center justify-center p-4">
-                        <img src="/logo.svg" alt="GPS Dental Training" class="max-w-full max-h-full object-contain" />
-                      </div>
-                      <span class="text-xs text-gray-500 text-center">GPS Dental Training</span>
-                    </div>
-                  </div>
-
-                  <p class="text-center text-gray-500 text-sm mt-8">
-                    {seminar.accreditation_text || 'GPS Dental Training is an AGD PACE-approved provider. PACE approval does not imply acceptance by a state or provincial board of dentistry.'}
-                  </p>
-                </div>
-              </div>
-
-              <!-- Right Column - Sticky Sidebar -->
-              <div class="lg:col-span-1">
-                <div class="sticky top-24 space-y-6">
-
-                  <!-- Registration Card -->
-                  <div class="bg-white rounded-2xl shadow-xl overflow-hidden">
-                    <div class="bg-gradient-to-br from-[#0C2044] to-[#173D84] p-6 text-white">
-                      <div class="flex items-center justify-between mb-2">
-                        <span class="text-white/60 text-sm uppercase tracking-wide">Enrollment Fee</span>
-                        <span class="bg-[#DDC89D] text-[#0C2044] text-xs font-bold px-2 py-1 rounded-full">
-                          {seminar.year}
-                        </span>
-                      </div>
-                      <div class="flex items-baseline gap-2">
-                        <span class="text-4xl font-extrabold">{formatCurrency(seminar.price || 750)}</span>
-                        <span class="text-white/60">one-time</span>
-                      </div>
-                    </div>
-
-                    <div class="p-6 space-y-4">
-                      <!-- Included items -->
-                      <ul class="space-y-3">
-                        <li class="flex items-center gap-3 text-sm text-gray-700">
-                          <svg class="w-5 h-5 text-green-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
-                          </svg>
-                          {seminar.total_sessions || 10} Interactive Sessions
-                        </li>
-                        <li class="flex items-center gap-3 text-sm text-gray-700">
-                          <svg class="w-5 h-5 text-green-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
-                          </svg>
-                          Up to {seminar.total_credits || 20} CE Credits
-                        </li>
-                        <li class="flex items-center gap-3 text-sm text-gray-700">
-                          <svg class="w-5 h-5 text-green-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
-                          </svg>
-                          Certificate of Completion
-                        </li>
-                        <li class="flex items-center gap-3 text-sm text-gray-700">
-                          <svg class="w-5 h-5 text-green-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
-                          </svg>
-                          1 Make-up Session Included
-                        </li>
-                        <li class="flex items-center gap-3 text-sm text-gray-700">
-                          <svg class="w-5 h-5 text-green-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
-                          </svg>
-                          Networking Opportunities
-                        </li>
-                      </ul>
-
-                      <!-- Register Button -->
-                      <button
-                        type="button"
-                        class="w-full bg-[#0B52AC] hover:bg-[#0C2044] text-white font-bold py-4 px-6 rounded-xl transition-colors text-lg shadow-lg hover:shadow-xl"
-                      >
-                        Register Now
-                      </button>
-
-                      <p class="text-xs text-gray-500 text-center">
-                        Secure checkout powered by Stripe
-                      </p>
-                    </div>
-                  </div>
-
-                  <!-- Quick Info Card -->
-                  <div class="bg-white rounded-2xl shadow-lg p-6">
-                    <h3 class="font-semibold text-[#0C2044] mb-4 uppercase text-sm tracking-wide">Quick Info</h3>
-
-                    <div class="space-y-4">
-                      <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 bg-[#0B52AC]/10 rounded-lg flex items-center justify-center">
-                          <svg class="w-5 h-5 text-[#0B52AC]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                          </svg>
-                        </div>
-                        <div>
-                          <p class="text-xs text-gray-500 uppercase">Sessions</p>
-                          <p class="font-semibold text-[#0C2044]">{seminar.total_sessions || 10} per year</p>
-                        </div>
-                      </div>
-
-                      <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 bg-[#DDC89D]/20 rounded-lg flex items-center justify-center">
-                          <svg class="w-5 h-5 text-[#DDC89D]" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3z"/>
-                          </svg>
-                        </div>
-                        <div>
-                          <p class="text-xs text-gray-500 uppercase">CE Credits</p>
-                          <p class="font-semibold text-[#0C2044]">{seminar.credits_per_session || 2} per session</p>
-                        </div>
-                      </div>
-
-                      <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 bg-[#0B52AC]/10 rounded-lg flex items-center justify-center">
-                          <svg class="w-5 h-5 text-[#0B52AC]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                          </svg>
-                        </div>
-                        <div>
-                          <p class="text-xs text-gray-500 uppercase">Duration</p>
-                          <p class="font-semibold text-[#0C2044]">{seminar.session_duration || '2 hours'}</p>
-                        </div>
-                      </div>
-
-                      {seminar.venue && (
-                        <div class="flex items-center gap-3">
-                          <div class="w-10 h-10 bg-[#0B52AC]/10 rounded-lg flex items-center justify-center">
-                            <svg class="w-5 h-5 text-[#0B52AC]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
-                            </svg>
-                          </div>
-                          <div>
-                            <p class="text-xs text-gray-500 uppercase">Location</p>
-                            <p class="font-semibold text-[#0C2044]">{seminar.venue}</p>
-                          </div>
-                        </div>
-                      )}
-
-                      {nextSession && (
-                        <div class="flex items-center gap-3 pt-3 border-t border-gray-100">
-                          <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                            <svg class="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                              <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/>
-                            </svg>
-                          </div>
-                          <div>
-                            <p class="text-xs text-gray-500 uppercase">Next Session</p>
-                            <p class="font-semibold text-[#0C2044]">
-                              {new Date(nextSession.session_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                            </p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <!-- Need Help? -->
-                  <div class="bg-gradient-to-br from-[#0C2044] to-[#173D84] rounded-2xl p-6 text-white">
-                    <h3 class="font-semibold text-white mb-2">Questions?</h3>
-                    <p class="text-white/80 text-sm mb-4">
-                      Our team is here to help you with registration, scheduling, or program details.
-                    </p>
-                    <a
-                      href={`mailto:${seminar.contact_email || 'gpsdentaltraining@gaprostho.com'}`}
-                      class="inline-flex items-center gap-2 text-[#DDC89D] font-semibold hover:gap-3 transition-all"
-                    >
-                      Contact Us
-                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/>
-                      </svg>
-                    </a>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </main>
-      </>
+      layoutTemplate === 'classic' ? (
+        <ClassicSeminarDetail {...templateProps} />
+      ) : (
+        <ModernSeminarDetail {...templateProps} />
+      )
     ) : (
-      <!-- No Active Seminar -->
+      <!-- No Active Seminar Fallback -->
       <main class="flex-1 bg-[#F8F9FA] flex items-center justify-center py-20">
         <div class="text-center px-4">
           <div class="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -870,4 +205,5 @@ const pageOgImage = seminar?.og_image_url || seminar?.hero_image_url || '/og-def
         </div>
       </main>
     )}
-</PageLayout>
+  </body>
+</html>

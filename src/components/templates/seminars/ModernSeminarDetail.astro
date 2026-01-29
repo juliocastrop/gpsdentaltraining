@@ -1,15 +1,25 @@
 ---
 /**
  * Modern Seminar Detail Template
- * The current default design for monthly seminar detail pages.
- * Full-width hero, card-based content sections, sticky sidebar.
+ * Editorial design matching ModernCourseDetail style.
+ * Full-width hero, clean content sections, sticky sidebar.
  */
 import Navbar from '../../layout/Navbar';
 import Footer from '../../layout/Footer';
 
+interface SessionStats {
+  total: number;
+  completed: number;
+  upcoming: number;
+  nextSession: any;
+  nextCertificateDate: string;
+  sessionsBeforeCertificate: number;
+}
+
 interface Props {
   seminar: any;
   moderators: any[];
+  sessions: any[];
   siteSettings: {
     logo_url: string;
     logo_white_url: string;
@@ -21,17 +31,20 @@ interface Props {
   benefits: string[];
   certificateDates: string[];
   url: URL;
+  sessionStats: SessionStats;
 }
 
 const {
   seminar,
   moderators,
+  sessions,
   siteSettings,
   cleanTitle,
   agendaItems,
   benefits,
   certificateDates,
   url,
+  sessionStats,
 } = Astro.props;
 
 function formatCurrency(amount: number): string {
@@ -66,20 +79,20 @@ function formatCurrency(amount: number): string {
   <div class="relative z-10 w-full pb-12 pt-32">
     <div class="container mx-auto px-4 lg:px-8 max-w-7xl">
       <div class="max-w-4xl">
-        <!-- Frequency Badge -->
-        <div class="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm text-white px-4 py-2 rounded-full font-medium text-sm mb-4">
-          <svg class="w-5 h-5 text-[#DDC89D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
-          <span>Once a Month</span>
-        </div>
-
-        <!-- CE Credits Badge -->
-        <div class="inline-flex items-center gap-2 bg-[#DDC89D] text-[#0C2044] px-4 py-2 rounded-full font-bold text-sm mb-6 ml-2 shadow-lg">
-          <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-            <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0zM6 18a1 1 0 001-1v-2.065a8.935 8.935 0 00-2-.712V17a1 1 0 001 1z"/>
-          </svg>
-          {seminar.total_credits} CE Credits
+        <!-- Badges Row -->
+        <div class="flex flex-wrap items-center gap-3 mb-6">
+          <div class="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm text-white px-4 py-2 rounded-full font-medium text-sm">
+            <svg class="w-5 h-5 text-[#DDC89D]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            <span>Once a Month</span>
+          </div>
+          <div class="inline-flex items-center gap-2 bg-[#DDC89D] text-[#0C2044] px-4 py-2 rounded-full font-bold text-sm shadow-lg">
+            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0zM6 18a1 1 0 001-1v-2.065a8.935 8.935 0 00-2-.712V17a1 1 0 001 1z"/>
+            </svg>
+            {seminar.total_credits} CE Credits
+          </div>
         </div>
 
         <!-- Title -->
@@ -141,23 +154,19 @@ function formatCurrency(amount: number): string {
 </section>
 
 <!-- Main Content -->
-<main class="flex-1 bg-[#F8F9FA]">
+<main class="flex-1 bg-white">
   <div class="container mx-auto px-4 lg:px-8 max-w-7xl py-12 lg:py-16">
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-12">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-14">
 
-      <!-- Left Column -->
-      <div class="lg:col-span-2 space-y-10 lg:space-y-12">
+      <!-- Left Column - Main Content -->
+      <div class="lg:col-span-2 space-y-12 lg:space-y-16">
 
         <!-- 1. Program Description -->
-        <div class="bg-white rounded-2xl shadow-lg p-8 lg:p-12">
-          <h2 class="text-2xl lg:text-3xl font-bold text-[#0C2044] mb-8 flex items-center gap-4">
-            <span class="w-12 h-12 bg-gradient-to-br from-[#DDC89D] to-[#BFAC87] rounded-xl flex items-center justify-center shadow-lg">
-              <svg class="w-6 h-6 text-[#0C2044]" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
-              </svg>
-            </span>
-            <span>About This Program</span>
-          </h2>
+        <div>
+          <div class="mb-8">
+            <h2 class="text-2xl lg:text-3xl font-bold text-[#0C2044]">About This Program</h2>
+            <div class="w-16 h-1 bg-[#26ACF5] mt-3 rounded-full"></div>
+          </div>
           {seminar.program_description ? (
             <div class="prose prose-lg max-w-none text-[#293647]" set:html={seminar.program_description} />
           ) : (
@@ -166,37 +175,37 @@ function formatCurrency(amount: number): string {
               <p>Sessions are held monthly at our {seminar.venue || 'Duluth, GA'} facility, each lasting approximately {seminar.session_duration || '2 hours'}. Upon completing all sessions, you'll earn {seminar.total_credits} CE credits.</p>
             </div>
           )}
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8">
-            {benefits.map((benefit: string) => (
-              <div class="flex items-start gap-3 bg-[#F8F9FA] p-4 rounded-xl hover:bg-[#DDC89D]/10 transition-colors">
-                <span class="flex-shrink-0 w-6 h-6 bg-[#DDC89D] rounded-full flex items-center justify-center mt-0.5">
-                  <svg class="w-4 h-4 text-[#0C2044]" fill="currentColor" viewBox="0 0 20 20">
-                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
-                  </svg>
-                </span>
-                <span class="text-gray-700">{benefit}</span>
-              </div>
-            ))}
-          </div>
+          {benefits.length > 0 && (
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8">
+              {benefits.map((benefit: string) => (
+                <div class="flex items-start gap-3 p-4 bg-[#F8F9FA] rounded-xl">
+                  <span class="flex-shrink-0 w-6 h-6 bg-[#DDC89D] rounded-full flex items-center justify-center mt-0.5">
+                    <svg class="w-4 h-4 text-[#0C2044]" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                    </svg>
+                  </span>
+                  <span class="text-gray-700">{benefit}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <!-- 2. Moderators Section -->
         {moderators.length > 0 && (
-          <div class="bg-white rounded-2xl shadow-lg p-8 lg:p-12">
-            <h2 class="text-2xl lg:text-3xl font-bold text-[#0C2044] mb-8 flex items-center gap-4">
-              <span class="w-12 h-12 bg-gradient-to-br from-[#0B52AC] to-[#173D84] rounded-xl flex items-center justify-center shadow-lg">
-                <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/>
-                </svg>
-              </span>
-              <span>{moderators.length > 1 ? 'Program Moderators' : 'Program Moderator'}</span>
-            </h2>
+          <div class="pt-12 lg:pt-16 border-t border-gray-100">
+            <div class="mb-8">
+              <h2 class="text-2xl lg:text-3xl font-bold text-[#0C2044]">
+                {moderators.length > 1 ? 'Program Moderators' : 'Program Moderator'}
+              </h2>
+              <div class="w-16 h-1 bg-[#26ACF5] mt-3 rounded-full"></div>
+            </div>
             <div class="space-y-8">
               {moderators.map((moderator: any) => (
-                <div class="flex flex-col md:flex-row gap-6 p-6 bg-[#F8F9FA] rounded-xl hover:shadow-md transition-shadow">
+                <div class="flex flex-col md:flex-row gap-6 p-6 bg-[#F8F9FA] rounded-xl">
                   <div class="flex-shrink-0">
                     {moderator.photo_url ? (
-                      <img src={moderator.photo_url} alt={moderator.name} class="w-32 h-32 md:w-40 md:h-40 rounded-xl object-cover shadow-lg" />
+                      <img src={moderator.photo_url} alt={moderator.name} class="w-32 h-32 md:w-40 md:h-40 rounded-xl object-cover shadow-md" />
                     ) : (
                       <div class="w-32 h-32 md:w-40 md:h-40 rounded-xl bg-gradient-to-br from-[#173D84] to-[#0C2044] flex items-center justify-center">
                         <span class="text-4xl font-bold text-white">{moderator.name.split(' ').map((n: string) => n[0]).join('').substring(0, 2)}</span>
@@ -225,43 +234,97 @@ function formatCurrency(amount: number): string {
         )}
 
         <!-- 3. Session Agenda -->
-        <div class="bg-gradient-to-br from-[#0C2044] to-[#173D84] rounded-2xl shadow-xl p-8 lg:p-12 text-white relative overflow-hidden">
+        <div class="bg-gradient-to-br from-[#0C2044] to-[#173D84] rounded-2xl p-8 lg:p-12 text-white relative overflow-hidden">
           <div class="absolute top-0 right-0 w-64 h-64 bg-[#DDC89D] rounded-full opacity-5 translate-x-1/2 -translate-y-1/2"></div>
-          <h2 class="text-2xl lg:text-3xl font-bold text-white mb-8 flex items-center gap-4 relative z-10">
-            <span class="w-12 h-12 bg-gradient-to-br from-[#DDC89D] to-[#BFAC87] rounded-xl flex items-center justify-center shadow-lg">
-              <svg class="w-6 h-6 text-[#0C2044]" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/>
-              </svg>
-            </span>
-            <span>Session Agenda</span>
-          </h2>
+          <div class="mb-8 relative z-10">
+            <h2 class="text-2xl lg:text-3xl font-bold text-white">Session Agenda</h2>
+            <div class="w-16 h-1 bg-[#DDC89D] mt-3 rounded-full"></div>
+          </div>
           <p class="text-white/70 mb-8 text-lg relative z-10">Each monthly session follows this structure:</p>
-          <div class="space-y-6 relative z-10">
+          <div class="space-y-4 relative z-10">
             {agendaItems.map((item: any, index: number) => (
-              <div class="flex items-start gap-4 bg-white/5 rounded-xl p-5 hover:bg-white/10 transition-colors">
-                <div class="flex-shrink-0 w-12 h-12 bg-[#DDC89D] text-[#0C2044] rounded-xl flex items-center justify-center font-bold text-lg shadow-md">
+              <div class="flex items-start gap-4 bg-white/5 rounded-xl p-5">
+                <div class="flex-shrink-0 w-10 h-10 bg-[#DDC89D] text-[#0C2044] rounded-full flex items-center justify-center font-bold text-lg">
                   {index + 1}
                 </div>
                 <div class="flex-1">
                   <div class="text-[#DDC89D] font-medium text-sm mb-1">{item.time}</div>
-                  <h3 class="text-xl font-semibold mb-1">{item.title}</h3>
-                  {item.description && <p class="text-white/70">{item.description}</p>}
+                  <h3 class="text-lg font-semibold mb-1">{item.title}</h3>
+                  {item.description && <p class="text-white/70 text-sm">{item.description}</p>}
                 </div>
               </div>
             ))}
           </div>
         </div>
 
-        <!-- 4. Membership Policy -->
-        <div class="bg-white rounded-2xl shadow-lg p-8 lg:p-12">
-          <h2 class="text-2xl lg:text-3xl font-bold text-[#0C2044] mb-8 flex items-center gap-4">
-            <span class="w-12 h-12 bg-gradient-to-br from-[#26ACF5] to-[#0B52AC] rounded-xl flex items-center justify-center shadow-lg">
-              <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M10 2a1 1 0 00-1 1v1a1 1 0 002 0V3a1 1 0 00-1-1zM4 4h3a3 3 0 006 0h3a2 2 0 012 2v9a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2zm2.5 7a1.5 1.5 0 100-3 1.5 1.5 0 000 3zm2.45 4a2.5 2.5 0 10-4.9 0h4.9zM12 9a1 1 0 100 2h3a1 1 0 100-2h-3zm-1 4a1 1 0 011-1h2a1 1 0 110 2h-2a1 1 0 01-1-1z" clip-rule="evenodd"/>
-              </svg>
-            </span>
-            <span>Membership Policy</span>
-          </h2>
+        <!-- 4. Session Schedule -->
+        {sessions && sessions.length > 0 && (
+          <div class="pt-12 lg:pt-16 border-t border-gray-100">
+            <div class="mb-8">
+              <h2 class="text-2xl lg:text-3xl font-bold text-[#0C2044]">{seminar.year} Session Schedule</h2>
+              <div class="w-16 h-1 bg-[#26ACF5] mt-3 rounded-full"></div>
+            </div>
+            <div class="space-y-2">
+              {sessions.map((session: any) => {
+                const sessionDate = new Date(session.session_date);
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const isPast = sessionDate < today;
+                const isNext = sessionStats?.nextSession?.id === session.id;
+
+                return (
+                  <div class={`flex items-center gap-4 p-4 rounded-xl transition-colors ${isNext ? 'bg-green-50 ring-2 ring-green-300' : isPast ? 'bg-gray-50' : 'bg-[#F8F9FA] hover:bg-gray-100'}`}>
+                    <div class={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-lg ${isPast ? 'bg-green-100 text-green-600' : isNext ? 'bg-[#0C2044] text-white' : 'bg-gray-200 text-gray-500'}`}>
+                      {isPast ? (
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                          <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                        </svg>
+                      ) : (
+                        session.session_number
+                      )}
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-center gap-2">
+                        <p class={`font-semibold ${isPast ? 'text-gray-400' : 'text-[#0C2044]'}`}>
+                          Session {session.session_number}
+                        </p>
+                        {isNext && (
+                          <span class="text-xs bg-green-500 text-white px-2 py-0.5 rounded-full font-bold">NEXT</span>
+                        )}
+                      </div>
+                      {session.topic && (
+                        <p class={`text-sm truncate ${isPast ? 'text-gray-400' : 'text-gray-600'}`}>{session.topic}</p>
+                      )}
+                    </div>
+                    <div class={`text-right flex-shrink-0 ${isPast ? 'text-gray-400' : 'text-gray-600'}`}>
+                      <p class="font-medium">
+                        {sessionDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </p>
+                      <p class="text-xs text-gray-400">
+                        {sessionDate.toLocaleDateString('en-US', { weekday: 'short' })}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div class="mt-6 pt-6 border-t border-gray-100">
+              <p class="text-gray-500 text-sm flex items-center gap-2">
+                <svg class="w-5 h-5 text-[#DDC89D]" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+                </svg>
+                Each session awards <strong class="text-[#0C2044]">{seminar.credits_per_session || 2} CE credits</strong> upon attendance
+              </p>
+            </div>
+          </div>
+        )}
+
+        <!-- 5. Membership Policy -->
+        <div class="pt-12 lg:pt-16 border-t border-gray-100">
+          <div class="mb-8">
+            <h2 class="text-2xl lg:text-3xl font-bold text-[#0C2044]">Membership Policy</h2>
+            <div class="w-16 h-1 bg-[#26ACF5] mt-3 rounded-full"></div>
+          </div>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div class="p-5 bg-[#F8F9FA] rounded-xl border-l-4 border-[#0B52AC]">
               <div class="flex items-center gap-3 mb-3">
@@ -289,26 +352,21 @@ function formatCurrency(amount: number): string {
                 <svg class="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                 <h3 class="font-bold text-[#0C2044]">Makeup Sessions</h3>
               </div>
-              <p class="text-gray-600 text-sm">{seminar.makeup_policy || 'Only ONE makeup session is allowed per calendar year. Contact us to schedule your makeup session.'}</p>
+              <p class="text-gray-600 text-sm">{seminar.makeup_policy || 'ONE makeup session is included with your registration. Contact us to schedule your makeup session if needed.'}</p>
             </div>
           </div>
         </div>
 
-        <!-- 5. Contact Information -->
-        <div class="bg-white rounded-2xl shadow-lg p-8 lg:p-12">
-          <h2 class="text-2xl lg:text-3xl font-bold text-[#0C2044] mb-8 flex items-center gap-4">
-            <span class="w-12 h-12 bg-gradient-to-br from-[#26ACF5] to-[#0B52AC] rounded-xl flex items-center justify-center shadow-lg">
-              <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/>
-                <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/>
-              </svg>
-            </span>
-            <span>Contact Information</span>
-          </h2>
+        <!-- 6. Contact Information -->
+        <div class="pt-12 lg:pt-16 border-t border-gray-100">
+          <div class="mb-8">
+            <h2 class="text-2xl lg:text-3xl font-bold text-[#0C2044]">Contact Information</h2>
+            <div class="w-16 h-1 bg-[#26ACF5] mt-3 rounded-full"></div>
+          </div>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div class="flex items-start gap-4 p-4 bg-[#F8F9FA] rounded-xl">
-              <div class="w-12 h-12 bg-[#0B52AC] rounded-lg flex items-center justify-center flex-shrink-0">
-                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+              <div class="w-10 h-10 bg-[#0B52AC]/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                <svg class="w-5 h-5 text-[#0B52AC]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
               </div>
               <div>
                 <h4 class="font-semibold text-[#0C2044] mb-1">Email Us</h4>
@@ -316,8 +374,8 @@ function formatCurrency(amount: number): string {
               </div>
             </div>
             <div class="flex items-start gap-4 p-4 bg-[#F8F9FA] rounded-xl">
-              <div class="w-12 h-12 bg-[#0B52AC] rounded-lg flex items-center justify-center flex-shrink-0">
-                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+              <div class="w-10 h-10 bg-[#0B52AC]/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                <svg class="w-5 h-5 text-[#0B52AC]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
               </div>
               <div>
                 <h4 class="font-semibold text-[#0C2044] mb-1">Training Center</h4>
@@ -325,24 +383,14 @@ function formatCurrency(amount: number): string {
               </div>
             </div>
           </div>
-          <div class="mt-6 pt-6 border-t border-gray-200">
-            <a href="/contact" class="inline-flex items-center gap-2 text-[#0B52AC] font-semibold hover:gap-3 transition-all">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-              Download vCard
-            </a>
-          </div>
         </div>
 
-        <!-- 6. Accreditation -->
-        <div class="bg-white rounded-2xl shadow-lg p-8 lg:p-12">
-          <h2 class="text-2xl lg:text-3xl font-bold text-[#0C2044] mb-8 flex items-center gap-4">
-            <span class="w-12 h-12 bg-gradient-to-br from-[#0B52AC] to-[#173D84] rounded-xl flex items-center justify-center shadow-lg">
-              <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-              </svg>
-            </span>
-            <span>Accreditation</span>
-          </h2>
+        <!-- 7. Accreditation -->
+        <div class="pt-12 lg:pt-16 border-t border-gray-100">
+          <div class="mb-8">
+            <h2 class="text-2xl lg:text-3xl font-bold text-[#0C2044]">Accreditation</h2>
+            <div class="w-16 h-1 bg-[#26ACF5] mt-3 rounded-full"></div>
+          </div>
           <div class="flex flex-wrap items-center justify-center gap-8 lg:gap-12">
             <div class="flex flex-col items-center gap-2">
               <div class="w-24 h-24 bg-[#F8F9FA] rounded-xl flex items-center justify-center p-4">
@@ -410,6 +458,43 @@ function formatCurrency(amount: number): string {
               <p class="text-xs text-red-500 mt-4 text-center font-medium">Tuition is not refundable or transferable</p>
             </div>
           </div>
+
+          <!-- Session Transparency Card -->
+          {sessionStats && sessionStats.upcoming > 0 && (
+            <div class="bg-gradient-to-br from-[#F0FDF4] to-[#DCFCE7] rounded-2xl shadow-lg p-6 border border-green-200">
+              <h3 class="font-semibold text-green-800 mb-4 uppercase text-sm tracking-wide flex items-center gap-2">
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+                </svg>
+                Current Season Status
+              </h3>
+              <div class="space-y-3">
+                <div class="flex justify-between items-center">
+                  <span class="text-green-700 text-sm">Sessions Remaining</span>
+                  <span class="font-bold text-green-800 text-lg">{sessionStats.upcoming} of {sessionStats.total}</span>
+                </div>
+                {sessionStats.nextSession && (
+                  <div class="flex justify-between items-center">
+                    <span class="text-green-700 text-sm">Next Session</span>
+                    <span class="font-semibold text-green-800">
+                      {new Date(sessionStats.nextSession.session_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </span>
+                  </div>
+                )}
+                <div class="pt-3 mt-3 border-t border-green-200">
+                  <div class="flex justify-between items-center">
+                    <span class="text-green-700 text-sm">Next Certificate</span>
+                    <span class="font-semibold text-green-800">{sessionStats.nextCertificateDate}</span>
+                  </div>
+                  {sessionStats.sessionsBeforeCertificate > 0 && (
+                    <p class="text-xs text-green-600 mt-2">
+                      {sessionStats.sessionsBeforeCertificate} session{sessionStats.sessionsBeforeCertificate > 1 ? 's' : ''} before certificate issuance
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           <!-- Quick Info Card -->
           <div class="bg-white rounded-2xl shadow-lg p-6">
