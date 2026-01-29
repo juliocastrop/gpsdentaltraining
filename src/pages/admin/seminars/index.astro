@@ -61,7 +61,8 @@ try {
       id,
       title,
       year,
-      price
+      price,
+      status
     `)
     .order('year', { ascending: false });
 
@@ -100,13 +101,8 @@ try {
 
     const ceCreditsTotal = attendanceData?.reduce((sum, a) => sum + (a.credits_awarded || 0), 0) || 0;
 
-    // Determine status
-    let status: 'active' | 'completed' | 'upcoming' = 'active';
-    if (seminar.year < currentYear) {
-      status = 'completed';
-    } else if (seminar.year > currentYear) {
-      status = 'upcoming';
-    }
+    // Use the actual status from database
+    const status = seminar.status || 'draft';
 
     seminars.push({
       ...seminar,

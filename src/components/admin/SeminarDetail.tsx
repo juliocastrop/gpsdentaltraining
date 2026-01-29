@@ -253,9 +253,12 @@ export default function SeminarDetail({
         throw new Error(result.error || 'Failed to update seminar');
       }
 
-      setMessage({ type: 'success', text: 'Seminar updated successfully' });
+      const successMessage = seminar.status === 'active'
+        ? 'Seminar updated successfully. Refresh /monthly-seminars to see changes.'
+        : 'Seminar updated successfully';
+      setMessage({ type: 'success', text: successMessage });
       setShowEditModal(false);
-      setTimeout(() => window.location.reload(), 1000);
+      setTimeout(() => window.location.reload(), 1500);
     } catch (err) {
       setMessage({ type: 'error', text: err instanceof Error ? err.message : 'Failed to update seminar' });
     } finally {
@@ -479,16 +482,19 @@ export default function SeminarDetail({
       user={user}
       actions={
         <div className="flex items-center gap-3">
-          <a
-            href={`/monthly-seminars/${seminar.slug}`}
-            target="_blank"
-            className="px-4 py-2 text-gray-700 bg-white border border-gray-300 font-medium rounded-lg hover:bg-gray-50 transition-colors text-sm inline-flex items-center gap-2"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-            </svg>
-            View Page
-          </a>
+          {/* Only show View Landing Page button if this seminar is active */}
+          {seminar.status === 'active' && (
+            <a
+              href="/monthly-seminars"
+              target="_blank"
+              className="px-4 py-2 text-gray-700 bg-white border border-gray-300 font-medium rounded-lg hover:bg-gray-50 transition-colors text-sm inline-flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+              View Landing Page
+            </a>
+          )}
           <button
             onClick={() => setShowEditModal(true)}
             className="px-4 py-2 bg-[#0B52AC] text-white font-medium rounded-lg hover:bg-[#0C2044] transition-colors text-sm inline-flex items-center gap-2"
@@ -501,6 +507,33 @@ export default function SeminarDetail({
         </div>
       }
     >
+      {/* Active Seminar Banner */}
+      {seminar.status === 'active' && (
+        <div className="mb-6 p-4 bg-gradient-to-r from-[#0B52AC]/10 to-[#0C2044]/10 border border-[#0B52AC]/20 rounded-xl flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-[#0B52AC] rounded-lg flex items-center justify-center">
+              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div>
+              <p className="font-semibold text-[#0C2044]">This is the Active Seminar</p>
+              <p className="text-sm text-gray-600">Changes here will be reflected on <code className="bg-gray-200 px-1.5 py-0.5 rounded text-xs">/monthly-seminars</code></p>
+            </div>
+          </div>
+          <a
+            href="/monthly-seminars"
+            target="_blank"
+            className="text-sm text-[#0B52AC] hover:underline flex items-center gap-1"
+          >
+            Preview
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            </svg>
+          </a>
+        </div>
+      )}
+
       {/* Message */}
       {message && (
         <div className={`mb-6 p-4 rounded-lg ${message.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>

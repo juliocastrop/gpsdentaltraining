@@ -72,6 +72,23 @@ export const PUT: APIRoute = async ({ params, request }) => {
 
     console.log('[API] Seminar update data:', updateData);
 
+    // If setting this seminar to 'active', deactivate all other active seminars
+    if (body.status === 'active') {
+      console.log('[API] Setting seminar to active - deactivating other active seminars');
+      const { error: deactivateError } = await supabaseAdmin
+        .from('seminars')
+        .update({ status: 'completed' })
+        .eq('status', 'active')
+        .neq('id', id);
+
+      if (deactivateError) {
+        console.error('[API] Error deactivating other seminars:', deactivateError);
+        // Don't throw - continue with the update
+      } else {
+        console.log('[API] Successfully deactivated other active seminars');
+      }
+    }
+
     const { data, error } = await supabaseAdmin
       .from('seminars')
       .update(updateData)

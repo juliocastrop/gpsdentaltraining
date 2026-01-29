@@ -384,6 +384,9 @@ export default function SeminarsList({
   const [isDeleting, setIsDeleting] = useState(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
 
+  // Find the active seminar (controls the /monthly-seminars landing page)
+  const activeSeminar = seminars.find(s => s.status === 'active');
+
   const handleDeleteClick = (seminar: Seminar, e: React.MouseEvent) => {
     e.stopPropagation();
     setDeleteModal({ isOpen: true, seminar });
@@ -426,7 +429,17 @@ export default function SeminarsList({
       header: 'Seminar',
       render: (seminar: Seminar) => (
         <div>
-          <p className="font-medium text-[#0C2044]">{seminar.title}</p>
+          <div className="flex items-center gap-2">
+            <p className="font-medium text-[#0C2044]">{seminar.title}</p>
+            {seminar.status === 'active' && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#0B52AC]/10 text-[#0B52AC] text-xs font-medium rounded-full">
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Landing Page
+              </span>
+            )}
+          </div>
           <p className="text-sm text-gray-500">{seminar.year}</p>
         </div>
       ),
@@ -556,6 +569,63 @@ export default function SeminarsList({
         </div>
       }
     >
+      {/* Landing Page Banner */}
+      <div className="bg-gradient-to-r from-[#0B52AC] to-[#0C2044] rounded-xl p-6 mb-6 text-white">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center flex-shrink-0">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div>
+              <h3 className="text-lg font-bold mb-1">Monthly Seminars Landing Page</h3>
+              <p className="text-white/80 text-sm">
+                {activeSeminar ? (
+                  <>
+                    Currently showing: <span className="font-semibold text-white">{activeSeminar.title}</span>
+                  </>
+                ) : (
+                  'No active seminar. The landing page will show a "Coming Soon" message.'
+                )}
+              </p>
+              <a
+                href="/monthly-seminars"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-white/70 hover:text-white text-xs mt-1 transition-colors"
+              >
+                View public page
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </a>
+            </div>
+          </div>
+          {activeSeminar ? (
+            <a
+              href={`/admin/seminars/${activeSeminar.id}`}
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-white text-[#0B52AC] font-bold rounded-lg hover:bg-gray-100 transition-colors whitespace-nowrap"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+              Edit Landing Page
+            </a>
+          ) : (
+            <button
+              onClick={() => setCreateModalOpen(true)}
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-white text-[#0B52AC] font-bold rounded-lg hover:bg-gray-100 transition-colors whitespace-nowrap"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Create Active Seminar
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard

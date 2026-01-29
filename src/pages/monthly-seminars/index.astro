@@ -38,6 +38,9 @@ if (seminarError) {
   console.error('Error fetching seminar:', seminarError);
 }
 
+// Debug: Log which seminar was fetched
+console.log('[monthly-seminars] Fetched seminar:', seminar?.id, seminar?.title, 'status:', seminar?.status, 'year:', seminar?.year);
+
 // Fetch moderators/speakers for this seminar
 let moderators: any[] = [];
 if (seminar) {

@@ -129,6 +129,21 @@ export const POST: APIRoute = async ({ request }) => {
 
     console.log('[API] Seminar insert data:', insertData);
 
+    // If creating as 'active', deactivate all other active seminars first
+    if (insertData.status === 'active') {
+      console.log('[API] Creating active seminar - deactivating other active seminars');
+      const { error: deactivateError } = await supabaseAdmin
+        .from('seminars')
+        .update({ status: 'completed' })
+        .eq('status', 'active');
+
+      if (deactivateError) {
+        console.error('[API] Error deactivating other seminars:', deactivateError);
+      } else {
+        console.log('[API] Successfully deactivated other active seminars');
+      }
+    }
+
     const { data, error } = await supabaseAdmin
       .from('seminars')
       .insert(insertData)
