@@ -63,7 +63,7 @@ interface Seminar {
   subtitle: string | null;
   program_description: string | null;
   benefits: string[] | null;
-  agenda_items: any[] | null;
+  agenda_items: AgendaItem[] | null;
   membership_policy: string | null;
   refund_policy: string | null;
   venue: string | null;
@@ -71,6 +71,12 @@ interface Seminar {
   contact_email: string | null;
   meta_title: string | null;
   meta_description: string | null;
+}
+
+interface AgendaItem {
+  time: string;
+  title: string;
+  description: string;
 }
 
 interface SeminarFormData {
@@ -93,6 +99,9 @@ interface SeminarFormData {
   membership_policy: string;
   refund_policy: string;
   benefits: string;
+  agenda_items: AgendaItem[];
+  meta_title: string;
+  meta_description: string;
 }
 
 interface SeminarDetailProps {
@@ -163,6 +172,13 @@ export default function SeminarDetail({
   const featuredImageInputRef = useRef<HTMLInputElement>(null);
   const heroImageInputRef = useRef<HTMLInputElement>(null);
 
+  // Default agenda items
+  const defaultAgendaItems: AgendaItem[] = [
+    { time: '5:45 PM - 6:00 PM', title: 'Meet and Greet', description: 'Networking and introductions' },
+    { time: '6:00 PM - 7:45 PM', title: 'Main Session', description: 'Core content and discussions' },
+    { time: '7:45 PM - 8:00 PM', title: 'Summary & Conclusions', description: 'Key takeaways and Q&A' },
+  ];
+
   const [formData, setFormData] = useState<SeminarFormData>({
     title: seminar.title || '',
     slug: seminar.slug || '',
@@ -183,7 +199,13 @@ export default function SeminarDetail({
     membership_policy: seminar.membership_policy || '',
     refund_policy: seminar.refund_policy || '',
     benefits: (seminar.benefits || []).join('\n'),
+    agenda_items: seminar.agenda_items || defaultAgendaItems,
+    meta_title: seminar.meta_title || '',
+    meta_description: seminar.meta_description || '',
   });
+
+  // Edit form section state
+  const [editSection, setEditSection] = useState<'basic' | 'content' | 'location' | 'seo'>('basic');
 
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -214,6 +236,9 @@ export default function SeminarDetail({
         membership_policy: formData.membership_policy || null,
         refund_policy: formData.refund_policy || null,
         benefits: toArray(formData.benefits),
+        agenda_items: formData.agenda_items,
+        meta_title: formData.meta_title || null,
+        meta_description: formData.meta_description || null,
       };
 
       const response = await fetch(`/api/admin/seminars/${seminar.id}`, {
@@ -1062,7 +1087,7 @@ export default function SeminarDetail({
       {/* Edit Modal */}
       {showEditModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+          <div className="bg-white rounded-xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
             <div className="p-4 border-b flex justify-between items-center">
               <h3 className="font-semibold text-[#0C2044]">Edit Seminar</h3>
               <button
@@ -1074,210 +1099,430 @@ export default function SeminarDetail({
                 </svg>
               </button>
             </div>
+
+            {/* Section Tabs */}
+            <div className="flex border-b bg-gray-50 px-4">
+              {[
+                { id: 'basic', label: 'Basic Info' },
+                { id: 'content', label: 'Content' },
+                { id: 'location', label: 'Location' },
+                { id: 'seo', label: 'SEO' },
+              ].map((section) => (
+                <button
+                  key={section.id}
+                  type="button"
+                  onClick={() => setEditSection(section.id as any)}
+                  className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                    editSection === section.id
+                      ? 'border-[#0B52AC] text-[#0B52AC]'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  {section.label}
+                </button>
+              ))}
+            </div>
+
             <form onSubmit={handleEditSubmit} className="p-6 overflow-y-auto flex-1">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Title */}
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
-                  <input
-                    type="text"
-                    value={formData.title}
-                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC] focus:border-transparent"
-                    required
-                  />
-                </div>
+              {/* Basic Info Section */}
+              {editSection === 'basic' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                    <input
+                      type="text"
+                      value={formData.title}
+                      onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC] focus:border-transparent"
+                      required
+                    />
+                  </div>
 
-                {/* Slug */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Slug</label>
-                  <input
-                    type="text"
-                    value={formData.slug}
-                    onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC] focus:border-transparent"
-                    required
-                  />
-                </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Slug</label>
+                    <input
+                      type="text"
+                      value={formData.slug}
+                      onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC] focus:border-transparent"
+                      required
+                    />
+                  </div>
 
-                {/* Year */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Year</label>
-                  <input
-                    type="number"
-                    value={formData.year}
-                    onChange={(e) => setFormData({ ...formData, year: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC] focus:border-transparent"
-                    required
-                  />
-                </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Year</label>
+                    <input
+                      type="number"
+                      value={formData.year}
+                      onChange={(e) => setFormData({ ...formData, year: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC] focus:border-transparent"
+                      required
+                    />
+                  </div>
 
-                {/* Subtitle */}
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Subtitle</label>
-                  <input
-                    type="text"
-                    value={formData.subtitle}
-                    onChange={(e) => setFormData({ ...formData, subtitle: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC] focus:border-transparent"
-                    placeholder="A brief description shown under the title"
-                  />
-                </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Subtitle</label>
+                    <input
+                      type="text"
+                      value={formData.subtitle}
+                      onChange={(e) => setFormData({ ...formData, subtitle: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC] focus:border-transparent"
+                      placeholder="A brief description shown under the title"
+                    />
+                  </div>
 
-                {/* Price */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Price ($)</label>
-                  <input
-                    type="number"
-                    value={formData.price}
-                    onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC] focus:border-transparent"
-                  />
-                </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Price ($)</label>
+                    <input
+                      type="number"
+                      value={formData.price}
+                      onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC] focus:border-transparent"
+                    />
+                  </div>
 
-                {/* Capacity */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Capacity</label>
-                  <input
-                    type="number"
-                    value={formData.capacity}
-                    onChange={(e) => setFormData({ ...formData, capacity: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC] focus:border-transparent"
-                    placeholder="Leave empty for unlimited"
-                  />
-                </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Capacity</label>
+                    <input
+                      type="number"
+                      value={formData.capacity}
+                      onChange={(e) => setFormData({ ...formData, capacity: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC] focus:border-transparent"
+                      placeholder="Leave empty for unlimited"
+                    />
+                  </div>
 
-                {/* Total Sessions */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Total Sessions</label>
-                  <input
-                    type="number"
-                    value={formData.total_sessions}
-                    onChange={(e) => setFormData({ ...formData, total_sessions: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC] focus:border-transparent"
-                  />
-                </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Total Sessions</label>
+                    <input
+                      type="number"
+                      value={formData.total_sessions}
+                      onChange={(e) => setFormData({ ...formData, total_sessions: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC] focus:border-transparent"
+                    />
+                  </div>
 
-                {/* Credits Per Session */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">CE Credits per Session</label>
-                  <input
-                    type="number"
-                    value={formData.credits_per_session}
-                    onChange={(e) => setFormData({ ...formData, credits_per_session: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC] focus:border-transparent"
-                  />
-                </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">CE Credits per Session</label>
+                    <input
+                      type="number"
+                      value={formData.credits_per_session}
+                      onChange={(e) => setFormData({ ...formData, credits_per_session: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC] focus:border-transparent"
+                    />
+                  </div>
 
-                {/* Status */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                  <select
-                    value={formData.status}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC] focus:border-transparent"
-                  >
-                    <option value="draft">Draft</option>
-                    <option value="active">Active</option>
-                    <option value="completed">Completed</option>
-                  </select>
-                </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                    <select
+                      value={formData.status}
+                      onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC] focus:border-transparent"
+                    >
+                      <option value="draft">Draft</option>
+                      <option value="active">Active</option>
+                      <option value="completed">Completed</option>
+                    </select>
+                  </div>
 
-                {/* Layout Template */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Layout Template</label>
-                  <select
-                    value={formData.layout_template}
-                    onChange={(e) => setFormData({ ...formData, layout_template: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC] focus:border-transparent"
-                  >
-                    <option value="modern">Modern</option>
-                    <option value="classic">Classic</option>
-                  </select>
-                </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Layout Template</label>
+                    <select
+                      value={formData.layout_template}
+                      onChange={(e) => setFormData({ ...formData, layout_template: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC] focus:border-transparent"
+                    >
+                      <option value="modern">Modern</option>
+                      <option value="classic">Classic</option>
+                    </select>
+                  </div>
 
-                {/* Venue */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Venue</label>
-                  <input
-                    type="text"
-                    value={formData.venue}
-                    onChange={(e) => setFormData({ ...formData, venue: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC] focus:border-transparent"
-                    placeholder="e.g., GPS Training Center"
-                  />
-                </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Featured Image URL</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="url"
+                        value={formData.featured_image_url}
+                        onChange={(e) => setFormData({ ...formData, featured_image_url: e.target.value })}
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC] focus:border-transparent"
+                        placeholder="https://..."
+                      />
+                      <input
+                        type="file"
+                        accept="image/*"
+                        ref={featuredImageInputRef}
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleImageUpload(file, 'featured');
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => featuredImageInputRef.current?.click()}
+                        disabled={isUploadingImage}
+                        className="px-3 py-2 text-sm font-medium text-[#0B52AC] bg-[#0B52AC]/10 rounded-lg hover:bg-[#0B52AC]/20 transition-colors disabled:opacity-50"
+                      >
+                        {isUploadingImage ? '...' : 'Upload'}
+                      </button>
+                    </div>
+                    {formData.featured_image_url && (
+                      <img src={formData.featured_image_url} alt="Featured" className="mt-2 h-20 rounded-lg object-cover" />
+                    )}
+                  </div>
 
-                {/* Contact Email */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Contact Email</label>
-                  <input
-                    type="email"
-                    value={formData.contact_email}
-                    onChange={(e) => setFormData({ ...formData, contact_email: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC] focus:border-transparent"
-                  />
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Hero Image URL</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="url"
+                        value={formData.hero_image_url}
+                        onChange={(e) => setFormData({ ...formData, hero_image_url: e.target.value })}
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC] focus:border-transparent"
+                        placeholder="https://..."
+                      />
+                      <input
+                        type="file"
+                        accept="image/*"
+                        ref={heroImageInputRef}
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleImageUpload(file, 'hero');
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => heroImageInputRef.current?.click()}
+                        disabled={isUploadingImage}
+                        className="px-3 py-2 text-sm font-medium text-[#0B52AC] bg-[#0B52AC]/10 rounded-lg hover:bg-[#0B52AC]/20 transition-colors disabled:opacity-50"
+                      >
+                        {isUploadingImage ? '...' : 'Upload'}
+                      </button>
+                    </div>
+                    {formData.hero_image_url && (
+                      <img src={formData.hero_image_url} alt="Hero" className="mt-2 h-20 rounded-lg object-cover" />
+                    )}
+                  </div>
                 </div>
+              )}
 
-                {/* Address */}
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
-                  <input
-                    type="text"
-                    value={formData.address}
-                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC] focus:border-transparent"
-                  />
-                </div>
+              {/* Content Section */}
+              {editSection === 'content' && (
+                <div className="space-y-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Program Description</label>
+                    <textarea
+                      value={formData.program_description}
+                      onChange={(e) => setFormData({ ...formData, program_description: e.target.value })}
+                      rows={6}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC] focus:border-transparent"
+                      placeholder="Describe the monthly seminar program..."
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Supports HTML for formatting</p>
+                  </div>
 
-                {/* Featured Image URL */}
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Featured Image URL</label>
-                  <input
-                    type="url"
-                    value={formData.featured_image_url}
-                    onChange={(e) => setFormData({ ...formData, featured_image_url: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC] focus:border-transparent"
-                    placeholder="https://..."
-                  />
-                </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Benefits (one per line)</label>
+                    <textarea
+                      value={formData.benefits}
+                      onChange={(e) => setFormData({ ...formData, benefits: e.target.value })}
+                      rows={5}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC] focus:border-transparent"
+                      placeholder="Interactive academic discussions&#10;Evidence-based clinical debates&#10;Treatment planning seminars"
+                    />
+                  </div>
 
-                {/* Hero Image URL */}
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Hero Image URL</label>
-                  <input
-                    type="url"
-                    value={formData.hero_image_url}
-                    onChange={(e) => setFormData({ ...formData, hero_image_url: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC] focus:border-transparent"
-                    placeholder="https://..."
-                  />
-                </div>
+                  {/* Agenda Items */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Session Agenda</label>
+                    <div className="space-y-3">
+                      {formData.agenda_items.map((item, index) => (
+                        <div key={index} className="p-3 bg-gray-50 rounded-lg">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <input
+                              type="text"
+                              value={item.time}
+                              onChange={(e) => {
+                                const newItems = [...formData.agenda_items];
+                                newItems[index] = { ...newItems[index], time: e.target.value };
+                                setFormData({ ...formData, agenda_items: newItems });
+                              }}
+                              className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                              placeholder="5:45 PM - 6:00 PM"
+                            />
+                            <input
+                              type="text"
+                              value={item.title}
+                              onChange={(e) => {
+                                const newItems = [...formData.agenda_items];
+                                newItems[index] = { ...newItems[index], title: e.target.value };
+                                setFormData({ ...formData, agenda_items: newItems });
+                              }}
+                              className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                              placeholder="Title"
+                            />
+                            <div className="flex gap-2">
+                              <input
+                                type="text"
+                                value={item.description}
+                                onChange={(e) => {
+                                  const newItems = [...formData.agenda_items];
+                                  newItems[index] = { ...newItems[index], description: e.target.value };
+                                  setFormData({ ...formData, agenda_items: newItems });
+                                }}
+                                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                                placeholder="Description"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const newItems = formData.agenda_items.filter((_, i) => i !== index);
+                                  setFormData({ ...formData, agenda_items: newItems });
+                                }}
+                                className="p-2 text-red-500 hover:bg-red-50 rounded-lg"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFormData({
+                            ...formData,
+                            agenda_items: [...formData.agenda_items, { time: '', title: '', description: '' }]
+                          });
+                        }}
+                        className="w-full py-2 text-sm font-medium text-[#0B52AC] bg-[#0B52AC]/5 rounded-lg hover:bg-[#0B52AC]/10 transition-colors flex items-center justify-center gap-1"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                        Add Agenda Item
+                      </button>
+                    </div>
+                  </div>
 
-                {/* Benefits */}
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Benefits (one per line)</label>
-                  <textarea
-                    value={formData.benefits}
-                    onChange={(e) => setFormData({ ...formData, benefits: e.target.value })}
-                    rows={4}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC] focus:border-transparent"
-                    placeholder="Literature Review Sessions&#10;Case Discussions&#10;Treatment Planning"
-                  />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Membership Policy</label>
+                      <textarea
+                        value={formData.membership_policy}
+                        onChange={(e) => setFormData({ ...formData, membership_policy: e.target.value })}
+                        rows={3}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC] focus:border-transparent"
+                        placeholder="Attendance requirements..."
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Refund Policy</label>
+                      <textarea
+                        value={formData.refund_policy}
+                        onChange={(e) => setFormData({ ...formData, refund_policy: e.target.value })}
+                        rows={3}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC] focus:border-transparent"
+                        placeholder="Tuition is non-refundable..."
+                      />
+                    </div>
+                  </div>
                 </div>
+              )}
 
-                {/* Refund Policy */}
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Refund Policy</label>
-                  <textarea
-                    value={formData.refund_policy}
-                    onChange={(e) => setFormData({ ...formData, refund_policy: e.target.value })}
-                    rows={2}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC] focus:border-transparent"
-                    placeholder="Tuition is non-refundable..."
-                  />
+              {/* Location Section */}
+              {editSection === 'location' && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Venue Name</label>
+                    <input
+                      type="text"
+                      value={formData.venue}
+                      onChange={(e) => setFormData({ ...formData, venue: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC] focus:border-transparent"
+                      placeholder="e.g., GPS Training Center"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Full Address</label>
+                    <textarea
+                      value={formData.address}
+                      onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                      rows={2}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC] focus:border-transparent"
+                      placeholder="123 Main Street, Suite 100, Miami, FL 33101"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Contact Email</label>
+                    <input
+                      type="email"
+                      value={formData.contact_email}
+                      onChange={(e) => setFormData({ ...formData, contact_email: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC] focus:border-transparent"
+                      placeholder="info@gpsdentaltraining.com"
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {/* SEO Section */}
+              {editSection === 'seo' && (
+                <div className="space-y-4">
+                  <div className="p-4 bg-blue-50 rounded-lg">
+                    <p className="text-sm text-blue-700">
+                      These fields control how the page appears in search results and social media shares.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Meta Title</label>
+                    <input
+                      type="text"
+                      value={formData.meta_title}
+                      onChange={(e) => setFormData({ ...formData, meta_title: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC] focus:border-transparent"
+                      placeholder="Leave empty to use seminar title"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      {formData.meta_title?.length || 0}/60 characters (recommended)
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Meta Description</label>
+                    <textarea
+                      value={formData.meta_description}
+                      onChange={(e) => setFormData({ ...formData, meta_description: e.target.value })}
+                      rows={3}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC] focus:border-transparent"
+                      placeholder="Brief description for search engines..."
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      {formData.meta_description?.length || 0}/160 characters (recommended)
+                    </p>
+                  </div>
+
+                  {/* Preview */}
+                  <div className="mt-6">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Search Result Preview</label>
+                    <div className="p-4 bg-white border rounded-lg">
+                      <p className="text-[#1a0dab] text-lg hover:underline cursor-pointer">
+                        {formData.meta_title || formData.title || 'Monthly Seminars'} | GPS Dental Training
+                      </p>
+                      <p className="text-green-700 text-sm">gpsdentaltraining.com/monthly-seminars</p>
+                      <p className="text-gray-600 text-sm mt-1">
+                        {formData.meta_description || 'GPS Monthly Seminars - A 10-session cycle dedicated to Literature Review, Case Discussions, and Treatment Planning.'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Actions */}
               <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
