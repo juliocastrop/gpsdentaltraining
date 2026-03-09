@@ -106,6 +106,202 @@ const SYSTEM_PAGES: Record<string, { label: string; description: string }> = {
   contact: { label: 'Contact', description: 'Address, phone, email, hours, and social links' },
 };
 
+// ─── Gallery Images Editor ───────────────────────────────────
+function GalleryImagesEditor({ images, onChange }: { images: any[]; onChange: (imgs: any[]) => void }) {
+  const [uploadingIdx, setUploadingIdx] = useState<number | null>(null);
+  const fileInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
+
+  const updateImage = (idx: number, field: string, value: string) => {
+    const updated = [...images];
+    updated[idx] = { ...updated[idx], [field]: value };
+    onChange(updated);
+  };
+
+  const uploadFile = async (idx: number, file: File) => {
+    setUploadingIdx(idx);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('field', 'gallery_image');
+      const response = await fetch('/api/admin/upload/site-image', { method: 'POST', body: formData });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Upload failed');
+      updateImage(idx, 'url', result.url);
+    } catch (err: any) {
+      alert('Upload failed: ' + err.message);
+    } finally {
+      setUploadingIdx(null);
+    }
+  };
+
+  const handleUploadNew = async (files: FileList) => {
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (!file.type.startsWith('image/')) continue;
+      const newIdx = images.length + i;
+      // Add placeholder entry
+      const placeholder = { url: '', caption: '', alt: file.name.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' ') };
+      onChange([...images, ...Array(i + 1 - (images.length + i - images.length + 1 - 1)).fill(null).map(() => placeholder)]);
+    }
+    // Upload sequentially
+    const newImages = [...images];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (!file.type.startsWith('image/')) continue;
+      setUploadingIdx(newImages.length);
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('field', 'gallery_image');
+        const response = await fetch('/api/admin/upload/site-image', { method: 'POST', body: formData });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Upload failed');
+        newImages.push({ url: result.url, caption: '', alt: file.name.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' ') });
+      } catch {
+        // Skip failed uploads
+      }
+    }
+    setUploadingIdx(null);
+    onChange(newImages);
+  };
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-6">
+      <h3 className="text-lg font-bold text-gray-900 mb-1">Facility Gallery</h3>
+      <p className="text-sm text-gray-500 mb-4">Images displayed in the masonry gallery on the About page. First image is featured (large).</p>
+
+      {/* Existing images */}
+      <div className="space-y-3 mb-4">
+        {images.map((img: any, idx: number) => (
+          <div key={idx} className="flex items-start gap-3 border border-gray-200 rounded-lg p-3 bg-gray-50">
+            {/* Thumbnail or upload placeholder */}
+            <div className="w-24 h-24 flex-shrink-0 relative">
+              {img.url ? (
+                <img src={img.url} alt={img.alt || ''} className="w-24 h-24 rounded-lg object-cover border border-gray-200" />
+              ) : (
+                <div className="w-24 h-24 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center bg-gray-100">
+                  <svg className="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 21h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v13.5A1.5 1.5 0 0 0 3.75 21Z" /></svg>
+                </div>
+              )}
+              {uploadingIdx === idx && (
+                <div className="absolute inset-0 bg-white/80 rounded-lg flex items-center justify-center">
+                  <svg className="w-6 h-6 text-blue-600 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                </div>
+              )}
+              {idx === 0 && img.url && (
+                <span className="absolute -top-1 -left-1 bg-[#DDC89D] text-[#0C2044] text-[10px] font-bold px-1.5 py-0.5 rounded">Featured</span>
+              )}
+            </div>
+
+            <div className="flex-1 space-y-2">
+              {/* URL + Upload button */}
+              <div className="flex gap-2">
+                <input
+                  type="url"
+                  value={img.url || ''}
+                  onChange={(e) => updateImage(idx, 'url', e.target.value)}
+                  placeholder="Image URL or upload below"
+                  className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+                />
+                <input
+                  ref={(el) => { fileInputRefs.current[idx] = el; }}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => { if (e.target.files?.[0]) uploadFile(idx, e.target.files[0]); e.target.value = ''; }}
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRefs.current[idx]?.click()}
+                  disabled={uploadingIdx === idx}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors flex-shrink-0"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                  Upload
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="text"
+                  value={img.caption || ''}
+                  onChange={(e) => updateImage(idx, 'caption', e.target.value)}
+                  placeholder="Caption (shown on hover)"
+                  className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+                />
+                <input
+                  type="text"
+                  value={img.alt || ''}
+                  onChange={(e) => updateImage(idx, 'alt', e.target.value)}
+                  placeholder="Alt text (accessibility)"
+                  className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+                />
+              </div>
+            </div>
+
+            {/* Reorder + Delete */}
+            <div className="flex flex-col gap-1 flex-shrink-0">
+              {idx > 0 && (
+                <button type="button" onClick={() => { const g = [...images]; [g[idx - 1], g[idx]] = [g[idx], g[idx - 1]]; onChange(g); }} className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded" title="Move up">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>
+                </button>
+              )}
+              {idx < images.length - 1 && (
+                <button type="button" onClick={() => { const g = [...images]; [g[idx], g[idx + 1]] = [g[idx + 1], g[idx]]; onChange(g); }} className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded" title="Move down">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                </button>
+              )}
+              <button type="button" onClick={() => onChange(images.filter((_: any, i: number) => i !== idx))} className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded" title="Remove">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Add buttons: manual or upload */}
+      <div className="flex flex-wrap gap-2">
+        <button type="button" onClick={() => onChange([...images, { url: '', caption: '', alt: '' }])} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-blue-600 border border-blue-300 rounded-lg hover:bg-blue-50">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+          Add by URL
+        </button>
+        <label className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-green-600 border border-green-300 rounded-lg hover:bg-green-50 cursor-pointer">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+          Upload Images
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={(e) => { if (e.target.files?.length) handleUploadNew(e.target.files); e.target.value = ''; }}
+          />
+        </label>
+      </div>
+
+      {/* Gallery preview */}
+      {images.filter((img: any) => img.url).length > 0 && (
+        <div className="mt-6 pt-4 border-t border-gray-200">
+          <p className="text-sm font-medium text-gray-700 mb-3">Gallery Preview</p>
+          <div className="grid grid-cols-4 md:grid-cols-6 gap-2">
+            {images.filter((img: any) => img.url).map((img: any, idx: number) => (
+              <div key={idx} className="relative aspect-square rounded-lg overflow-hidden border border-gray-200 group">
+                <img src={img.url} alt={img.alt || ''} className="w-full h-full object-cover" />
+                {idx === 0 && (
+                  <span className="absolute top-1 left-1 bg-[#DDC89D] text-[#0C2044] text-[9px] font-bold px-1 py-0.5 rounded">Featured</span>
+                )}
+                {img.caption && (
+                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <span className="text-white text-[10px] leading-tight line-clamp-2">{img.caption}</span>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── System Page Editors ─────────────────────────────────────
 function AboutPageEditor({ content, onChange }: { content: Record<string, any>; onChange: (c: Record<string, any>) => void }) {
   const update = (key: string, value: any) => onChange({ ...content, [key]: value });
@@ -189,63 +385,7 @@ function AboutPageEditor({ content, onChange }: { content: Record<string, any>; 
       </div>
 
       {/* Gallery Images */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
-        <h3 className="text-lg font-bold text-gray-900 mb-1">Facility Gallery</h3>
-        <p className="text-sm text-gray-500 mb-4">Images displayed in the masonry gallery on the About page. First image is featured (large).</p>
-        <div className="space-y-3">
-          {(content.gallery_images || []).map((img: any, idx: number) => (
-            <div key={idx} className="flex items-start gap-3 border border-gray-200 rounded-lg p-3 bg-gray-50">
-              {img.url && (
-                <img src={img.url} alt={img.alt || ''} className="w-20 h-20 rounded-lg object-cover flex-shrink-0 border border-gray-200" />
-              )}
-              <div className="flex-1 space-y-2">
-                <input
-                  type="url"
-                  value={img.url || ''}
-                  onChange={(e) => { const g = [...(content.gallery_images || [])]; g[idx] = { ...g[idx], url: e.target.value }; update('gallery_images', g); }}
-                  placeholder="Image URL"
-                  className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
-                />
-                <div className="grid grid-cols-2 gap-2">
-                  <input
-                    type="text"
-                    value={img.caption || ''}
-                    onChange={(e) => { const g = [...(content.gallery_images || [])]; g[idx] = { ...g[idx], caption: e.target.value }; update('gallery_images', g); }}
-                    placeholder="Caption (shown on hover)"
-                    className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
-                  />
-                  <input
-                    type="text"
-                    value={img.alt || ''}
-                    onChange={(e) => { const g = [...(content.gallery_images || [])]; g[idx] = { ...g[idx], alt: e.target.value }; update('gallery_images', g); }}
-                    placeholder="Alt text (accessibility)"
-                    className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
-                  />
-                </div>
-              </div>
-              <div className="flex flex-col gap-1 flex-shrink-0">
-                {idx > 0 && (
-                  <button type="button" onClick={() => { const g = [...(content.gallery_images || [])]; [g[idx - 1], g[idx]] = [g[idx], g[idx - 1]]; update('gallery_images', g); }} className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded" title="Move up">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>
-                  </button>
-                )}
-                {idx < (content.gallery_images || []).length - 1 && (
-                  <button type="button" onClick={() => { const g = [...(content.gallery_images || [])]; [g[idx], g[idx + 1]] = [g[idx + 1], g[idx]]; update('gallery_images', g); }} className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded" title="Move down">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                  </button>
-                )}
-                <button type="button" onClick={() => update('gallery_images', (content.gallery_images || []).filter((_: any, i: number) => i !== idx))} className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded" title="Remove">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                </button>
-              </div>
-            </div>
-          ))}
-          <button type="button" onClick={() => update('gallery_images', [...(content.gallery_images || []), { url: '', caption: '', alt: '' }])} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-blue-600 border border-blue-300 rounded-lg hover:bg-blue-50">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-            Add Image
-          </button>
-        </div>
-      </div>
+      <GalleryImagesEditor images={content.gallery_images || []} onChange={(imgs) => update('gallery_images', imgs)} />
 
       {/* Location */}
       <div className="bg-white rounded-xl border border-gray-200 p-6">
