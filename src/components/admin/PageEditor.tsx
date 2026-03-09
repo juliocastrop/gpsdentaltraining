@@ -188,6 +188,65 @@ function AboutPageEditor({ content, onChange }: { content: Record<string, any>; 
         </div>
       </div>
 
+      {/* Gallery Images */}
+      <div className="bg-white rounded-xl border border-gray-200 p-6">
+        <h3 className="text-lg font-bold text-gray-900 mb-1">Facility Gallery</h3>
+        <p className="text-sm text-gray-500 mb-4">Images displayed in the masonry gallery on the About page. First image is featured (large).</p>
+        <div className="space-y-3">
+          {(content.gallery_images || []).map((img: any, idx: number) => (
+            <div key={idx} className="flex items-start gap-3 border border-gray-200 rounded-lg p-3 bg-gray-50">
+              {img.url && (
+                <img src={img.url} alt={img.alt || ''} className="w-20 h-20 rounded-lg object-cover flex-shrink-0 border border-gray-200" />
+              )}
+              <div className="flex-1 space-y-2">
+                <input
+                  type="url"
+                  value={img.url || ''}
+                  onChange={(e) => { const g = [...(content.gallery_images || [])]; g[idx] = { ...g[idx], url: e.target.value }; update('gallery_images', g); }}
+                  placeholder="Image URL"
+                  className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    value={img.caption || ''}
+                    onChange={(e) => { const g = [...(content.gallery_images || [])]; g[idx] = { ...g[idx], caption: e.target.value }; update('gallery_images', g); }}
+                    placeholder="Caption (shown on hover)"
+                    className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+                  />
+                  <input
+                    type="text"
+                    value={img.alt || ''}
+                    onChange={(e) => { const g = [...(content.gallery_images || [])]; g[idx] = { ...g[idx], alt: e.target.value }; update('gallery_images', g); }}
+                    placeholder="Alt text (accessibility)"
+                    className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+                  />
+                </div>
+              </div>
+              <div className="flex flex-col gap-1 flex-shrink-0">
+                {idx > 0 && (
+                  <button type="button" onClick={() => { const g = [...(content.gallery_images || [])]; [g[idx - 1], g[idx]] = [g[idx], g[idx - 1]]; update('gallery_images', g); }} className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded" title="Move up">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>
+                  </button>
+                )}
+                {idx < (content.gallery_images || []).length - 1 && (
+                  <button type="button" onClick={() => { const g = [...(content.gallery_images || [])]; [g[idx], g[idx + 1]] = [g[idx + 1], g[idx]]; update('gallery_images', g); }} className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded" title="Move down">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                  </button>
+                )}
+                <button type="button" onClick={() => update('gallery_images', (content.gallery_images || []).filter((_: any, i: number) => i !== idx))} className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded" title="Remove">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+            </div>
+          ))}
+          <button type="button" onClick={() => update('gallery_images', [...(content.gallery_images || []), { url: '', caption: '', alt: '' }])} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-blue-600 border border-blue-300 rounded-lg hover:bg-blue-50">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+            Add Image
+          </button>
+        </div>
+      </div>
+
       {/* Location */}
       <div className="bg-white rounded-xl border border-gray-200 p-6">
         <h3 className="text-lg font-bold text-gray-900 mb-4">Location</h3>
