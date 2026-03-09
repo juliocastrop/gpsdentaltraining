@@ -6,6 +6,7 @@
  */
 import Navbar from '../../layout/Navbar';
 import Footer from '../../layout/Footer';
+import { getFooterProps } from '../../../lib/data/site-settings-loader';
 import CountdownTimer from '../../events/CountdownTimer';
 import TicketSelector from '../../tickets/TicketSelector';
 import WaitlistForm from '../../tickets/WaitlistForm';
@@ -64,6 +65,8 @@ const {
   url,
   isPreview = false,
 } = Astro.props;
+
+const footerProps = getFooterProps(siteSettings as any);
 
 // Sponsors & Accreditation: use event data if available
 const sponsors = event.sponsors && event.sponsors.length > 0 ? event.sponsors : null;
@@ -131,7 +134,8 @@ function cleanHtmlDescription(html: string | null | undefined): string {
   logo={siteSettings.logo_url}
   logoWhite={siteSettings.logo_white_url}
   transparent={true}
-  client:load
+  isLoggedIn={!!Astro.locals.userId}
+      client:load
 />
 
 <!-- Hero Section -->
@@ -230,7 +234,8 @@ function cleanHtmlDescription(html: string | null | undefined): string {
             endDate={event.end_date || ''}
             url={url.href}
             variant="icon"
-            client:load
+            isLoggedIn={!!Astro.locals.userId}
+      client:load
           />
         </div>
       </div>
@@ -250,7 +255,8 @@ function cleanHtmlDescription(html: string | null | undefined): string {
         <h2 class="text-white/60 text-sm md:text-base uppercase tracking-[0.2em] font-medium mb-2">Course Starts In</h2>
         <div class="w-16 h-1 bg-[#DDC89D] mx-auto rounded-full"></div>
       </div>
-      <CountdownTimer targetDate={event.start_date} client:load />
+      <CountdownTimer targetDate={event.start_date} isLoggedIn={!!Astro.locals.userId}
+      client:load />
       <div class="text-center mt-8">
         <p class="text-white/70 text-sm md:text-base">
           <span class="text-[#DDC89D] font-semibold">{dateDisplay}</span>
@@ -384,7 +390,8 @@ function cleanHtmlDescription(html: string | null | undefined): string {
               images={event.gallery_images}
               title={cleanTitle}
               columns={3}
-              client:load
+              isLoggedIn={!!Astro.locals.userId}
+      client:load
             />
           </div>
         )}
@@ -542,9 +549,11 @@ function cleanHtmlDescription(html: string | null | undefined): string {
       <div class="lg:col-span-1">
         <div class="sticky top-24 space-y-6">
           {availability.is_available ? (
-            <TicketSelector eventId={event.id} eventTitle={event.title} client:load />
+            <TicketSelector eventId={event.id} eventTitle={event.title} isLoggedIn={!!Astro.locals.userId}
+      client:load />
           ) : (
-            <WaitlistForm eventId={event.id} eventTitle={event.title} client:load />
+            <WaitlistForm eventId={event.id} eventTitle={event.title} isLoggedIn={!!Astro.locals.userId}
+      client:load />
           )}
 
           <!-- Quick Info Card -->
@@ -625,7 +634,7 @@ function cleanHtmlDescription(html: string | null | undefined): string {
 </main>
 
 <!-- Footer -->
-<Footer client:load />
+<Footer {...footerProps} client:load />
 
 <!-- Schedule Tab Styles -->
 <style>

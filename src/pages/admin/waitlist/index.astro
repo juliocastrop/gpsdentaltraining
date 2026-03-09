@@ -4,8 +4,9 @@
  * Manage waitlist entries and notify users when spots open
  */
 import '../../../styles/global.css';
-import { getSiteSettings } from '../../../lib/data/site-settings-loader';
+import { getSiteSettings, getFooterProps } from '../../../lib/data/site-settings-loader';
 const siteSettings = await getSiteSettings();
+const footerProps = getFooterProps(siteSettings);
 import Navbar from '../../../components/layout/Navbar';
 import Footer from '../../../components/layout/Footer';
 import { supabaseAdmin } from '../../../lib/supabase/client';
@@ -15,32 +16,31 @@ import {
   getAllWaitlistAdmin,
 } from '../../../lib/supabase/queries';
 
-// Check if Clerk is configured
-const clerkConfigured = !!process.env.PUBLIC_CLERK_PUBLISHABLE_KEY;
-
-// Get user from Clerk if available
-let userId: string | null = null;
+// Get user from Supabase Auth
+const userId = Astro.locals.userId;
 let isAdmin = false;
-try {
-  if (clerkConfigured && Astro.locals.auth) {
-    const auth = Astro.locals.auth();
-    userId = auth?.userId || null;
+let userName = 'Admin';
+let userEmail = 'admin@gpsdentaltraining.com';
 
-    if (userId) {
-      const { data: userData } = await supabaseAdmin
-        .from('users')
-        .select('role')
-        .eq('clerk_id', userId)
-        .single();
-      isAdmin = userData?.role === 'admin';
-    }
+if (userId) {
+  const { data: userData } = await supabaseAdmin
+    .from('users')
+    .select('role, first_name, last_name, email')
+    .eq('auth_id', userId)
+    .single();
+
+  isAdmin = userData?.role === 'admin' || userData?.role === 'staff';
+  if (userData?.first_name) {
+    userName = (userData.first_name + ' ' + (userData.last_name || '')).trim();
   }
-} catch {
-  // Clerk not available
+  if (userData?.email) {
+    userEmail = userData.email;
+  }
+} else if (import.meta.env.DEV) {
+  isAdmin = true;
 }
-
 // Redirect if not logged in or not admin
-if (clerkConfigured && (!userId || !isAdmin)) {
+if (!userId || !isAdmin) {
   return Astro.redirect('/sign-in?redirect_url=/admin/waitlist');
 }
 
@@ -137,6 +137,7 @@ function isExpiringSoon(expiresAt: string | null): boolean {
     <Navbar
       logo={siteSettings.logo_url}
       transparent={false}
+      isLoggedIn={!!Astro.locals.userId}
       client:load
     />
 
@@ -397,7 +398,7 @@ function isExpiringSoon(expiresAt: string | null): boolean {
       </div>
     </main>
 
-    <Footer client:load />
+    <Footer {...footerProps} client:load />
 
     <!-- Confirmation Modal -->
     <div id="confirm-modal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden">

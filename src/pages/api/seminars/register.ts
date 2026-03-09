@@ -1,15 +1,14 @@
 import type { APIRoute } from 'astro';
+import { getUser } from '../../../lib/supabase/auth';
 import {
   createSeminarRegistration,
-  getSeminarBySlug,
   getUserSeminarRegistration,
-  getUserByClerkId,
+  getUserByAuthId,
   getUpcomingSeminarSessions,
 } from '../../../lib/supabase/queries';
 import QRCode from 'qrcode';
 import crypto from 'crypto';
 
-// Generate a unique QR code string
 function generateQRCodeString(userId: string, seminarId: string): string {
   const timestamp = Date.now().toString(36);
   const randomPart = crypto.randomBytes(4).toString('hex');
@@ -19,17 +18,22 @@ function generateQRCodeString(userId: string, seminarId: string): string {
 /**
  * POST /api/seminars/register
  * Register a user for a monthly seminar
- *
- * Body: {
- *   seminarId: string,
- *   clerkUserId?: string,
- *   orderId?: string
- * }
  */
-export const POST: APIRoute = async ({ request }) => {
+export const POST: APIRoute = async ({ request, cookies }) => {
   try {
+    const authUser = await getUser(cookies);
+    if (!authUser) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'User authentication is required',
+      }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
     const body = await request.json();
-    const { seminarId, clerkUserId, orderId } = body;
+    const { seminarId, orderId } = body;
 
     if (!seminarId) {
       return new Response(JSON.stringify({
@@ -41,18 +45,7 @@ export const POST: APIRoute = async ({ request }) => {
       });
     }
 
-    if (!clerkUserId) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'User authentication is required',
-      }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-
-    // Get user from Clerk ID
-    const user = await getUserByClerkId(clerkUserId);
+    const user = await getUserByAuthId(authUser.id);
     if (!user) {
       return new Response(JSON.stringify({
         success: false,
@@ -63,7 +56,7 @@ export const POST: APIRoute = async ({ request }) => {
       });
     }
 
-    // Check if user already has an active registration for this seminar
+    // Check if user already has an active registration
     const existingRegistration = await getUserSeminarRegistration(user.id, seminarId);
     if (existingRegistration) {
       return new Response(JSON.stringify({
@@ -79,26 +72,18 @@ export const POST: APIRoute = async ({ request }) => {
       });
     }
 
-    // Get upcoming sessions to determine start date
     const upcomingSessions = await getUpcomingSeminarSessions(seminarId, 1);
     const startSessionDate = upcomingSessions.length > 0
       ? upcomingSessions[0].session_date
       : null;
 
-    // Generate QR code
     const qrCodeString = generateQRCodeString(user.id, seminarId);
-
-    // Create QR code data URL
     const qrCodeUrl = await QRCode.toDataURL(qrCodeString, {
       width: 300,
       margin: 2,
-      color: {
-        dark: '#0C2044',
-        light: '#FFFFFF',
-      },
+      color: { dark: '#0C2044', light: '#FFFFFF' },
     });
 
-    // Create registration
     const registration = await createSeminarRegistration({
       user_id: user.id,
       seminar_id: seminarId,

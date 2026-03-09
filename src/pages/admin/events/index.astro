@@ -7,41 +7,30 @@ import AdminLayout from '../../../layouts/AdminLayout.astro';
 import EventsList from '../../../components/admin/EventsList';
 import { supabaseAdmin } from '../../../lib/supabase/client';
 
-// Check if Clerk is configured
-const clerkConfigured = !!import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY;
-
-// Get user from Clerk if available
-let userId: string | null = null;
+// Get user from Supabase Auth
+const userId = Astro.locals.userId;
 let isAdmin = false;
 let userName = 'Admin';
 let userEmail = 'admin@gpsdentaltraining.com';
 
-try {
-  if (clerkConfigured && Astro.locals.auth) {
-    const auth = Astro.locals.auth();
-    userId = auth?.userId || null;
+if (userId) {
+  const { data: userData } = await supabaseAdmin
+    .from('users')
+    .select('role, first_name, last_name, email')
+    .eq('auth_id', userId)
+    .single();
 
-    if (userId) {
-      const { data: userData } = await supabaseAdmin
-        .from('users')
-        .select('role, first_name, last_name, email')
-        .eq('clerk_id', userId)
-        .single();
-
-      isAdmin = userData?.role === 'admin';
-      if (userData?.first_name) {
-        userName = `${userData.first_name} ${userData.last_name || ''}`.trim();
-      }
-      if (userData?.email) {
-        userEmail = userData.email;
-      }
-    }
+  isAdmin = userData?.role === 'admin' || userData?.role === 'staff';
+  if (userData?.first_name) {
+    userName = (userData.first_name + ' ' + (userData.last_name || '')).trim();
   }
-} catch {
+  if (userData?.email) {
+    userEmail = userData.email;
+  }
+} else if (import.meta.env.DEV) {
   isAdmin = true;
 }
-
-if (clerkConfigured && (!userId || !isAdmin)) {
+if (!userId || !isAdmin) {
   return Astro.redirect('/sign-in?redirect_url=/admin/events');
 }
 

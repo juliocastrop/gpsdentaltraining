@@ -4,8 +4,9 @@
  * Allows anyone to verify the authenticity of a certificate
  */
 import '../../styles/global.css';
-import { getSiteSettings } from '../../lib/data/site-settings-loader';
+import { getSiteSettings, getFooterProps } from '../../lib/data/site-settings-loader';
 const siteSettings = await getSiteSettings();
+const footerProps = getFooterProps(siteSettings);
 import Navbar from '../../components/layout/Navbar';
 import Footer from '../../components/layout/Footer';
 import { getCertificateByCode } from '../../lib/supabase/queries';
@@ -79,6 +80,7 @@ function formatEventDate(dateStr: string): string {
     <Navbar
       logo={siteSettings.logo_url}
       transparent={false}
+      isLoggedIn={!!Astro.locals.userId}
       client:load
     />
 
@@ -314,7 +316,7 @@ function formatEventDate(dateStr: string): string {
       </div>
     </main>
 
-    <Footer client:load />
+    <Footer {...footerProps} client:load />
 
     <script>
       // Handle form submission to redirect to correct URL format

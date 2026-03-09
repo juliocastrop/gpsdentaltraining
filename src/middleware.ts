@@ -1,52 +1,62 @@
 /**
  * GPS Dental Training - Middleware
- * Handles authentication with Clerk and route protection
+ * Handles authentication with Supabase Auth and route protection
  */
-import { clerkMiddleware, createRouteMatcher } from '@clerk/astro/server';
+import { defineMiddleware } from 'astro:middleware';
+import { getUser } from './lib/supabase/auth';
+import { supabaseAdmin } from './lib/supabase/client';
 
-// Define protected routes that require authentication
-const isProtectedRoute = createRouteMatcher([
-  '/account(.*)',
-  '/checkout(.*)',
-  '/api/user(.*)',
-]);
+// Route matchers
+function isProtectedRoute(url: URL): boolean {
+  const path = url.pathname;
+  return path.startsWith('/account') || path.startsWith('/checkout') || path.startsWith('/api/user');
+}
 
-// Define admin routes that require admin role
-const isAdminRoute = createRouteMatcher([
-  '/admin(.*)',
-  '/api/admin(.*)',
-]);
+function isAdminRoute(url: URL): boolean {
+  const path = url.pathname;
+  return path.startsWith('/admin') || path.startsWith('/api/admin');
+}
 
-export const onRequest = clerkMiddleware((auth, context) => {
-  const { userId, sessionClaims } = auth();
+export const onRequest = defineMiddleware(async (context, next) => {
+  // Get authenticated user from Supabase session cookies
+  const user = await getUser(context.cookies);
+  const userId = user?.id || null;
+  const userEmail = user?.email || null;
+
+  // Store auth info in locals for pages to use
+  context.locals.userId = userId;
+  context.locals.userEmail = userEmail;
+
+  const url = new URL(context.request.url);
 
   // Protect routes that require authentication
-  if (isProtectedRoute(context.request) && !userId) {
-    return auth().redirectToSignIn();
+  if (isProtectedRoute(url) && !userId) {
+    return context.redirect(`/sign-in?redirect_url=${url.pathname}`);
   }
 
-  // Protect admin routes - check for admin role in public metadata
-  if (isAdminRoute(context.request)) {
+  // Protect admin routes
+  if (isAdminRoute(url)) {
+    if (!userId) {
+      return context.redirect(`/sign-in?redirect_url=${url.pathname}`);
+    }
+
     // In development mode, allow access if user is authenticated
     const isDev = import.meta.env.DEV;
 
-    if (!userId) {
-      return auth().redirectToSignIn();
-    }
-
-    // In production, verify admin role
     if (!isDev) {
-      // Check if user has admin role in their metadata
-      const metadata = (sessionClaims?.publicMetadata || sessionClaims?.public_metadata || {}) as { role?: string };
-      const userRole = metadata?.role;
+      // In production, verify admin role from database
+      const { data: userData } = await supabaseAdmin
+        .from('users')
+        .select('role')
+        .eq('auth_id', userId)
+        .single();
 
+      const userRole = userData?.role;
       if (userRole !== 'admin' && userRole !== 'staff') {
-        // Redirect to home if not an admin
-        return new Response(null, {
-          status: 302,
-          headers: { Location: '/' },
-        });
+        return context.redirect('/');
       }
     }
   }
+
+  return next();
 });

@@ -8,22 +8,35 @@ import { getSiteSettings } from '../../../../lib/data/site-settings-loader';
 const siteSettings = await getSiteSettings();
 import Navbar from '../../../../components/layout/Navbar';
 import { getCertificateTemplateById } from '../../../../lib/supabase/queries';
+import { supabaseAdmin } from '../../../../lib/supabase/client';
 import type { CertificateTemplate } from '../../../../types/database';
 
 // Check if user is admin
-const clerkConfigured = !!process.env.PUBLIC_CLERK_PUBLISHABLE_KEY;
+// Get user from Supabase Auth
+const userId = Astro.locals.userId;
 let isAdmin = false;
+let userName = 'Admin';
+let userEmail = 'admin@gpsdentaltraining.com';
 
-if (clerkConfigured && Astro.locals.auth) {
-  try {
-    const auth = Astro.locals.auth();
-    isAdmin = !!auth?.userId;
-  } catch {
-    // Clerk not available
+if (userId) {
+  const { data: userData } = await supabaseAdmin
+    .from('users')
+    .select('role, first_name, last_name, email')
+    .eq('auth_id', userId)
+    .single();
+
+  isAdmin = userData?.role === 'admin' || userData?.role === 'staff';
+  if (userData?.first_name) {
+    userName = (userData.first_name + ' ' + (userData.last_name || '')).trim();
   }
+  if (userData?.email) {
+    userEmail = userData.email;
+  }
+} else if (import.meta.env.DEV) {
+  isAdmin = true;
 }
 
-if (!isAdmin && clerkConfigured) {
+if (!isAdmin) {
   return Astro.redirect('/sign-in?redirect_url=/admin/certificate-templates');
 }
 
@@ -63,7 +76,8 @@ const isSeminar = template.template_type === 'seminar';
   </head>
 
   <body class="min-h-screen flex flex-col bg-gray-100">
-    <Navbar logo={siteSettings.logo_url} transparent={false} client:load />
+    <Navbar logo={siteSettings.logo_url} transparent={false} isLoggedIn={!!Astro.locals.userId}
+      client:load />
 
     <div class="h-20"></div>
 

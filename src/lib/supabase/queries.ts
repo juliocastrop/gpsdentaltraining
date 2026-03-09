@@ -821,6 +821,18 @@ export async function getUserByClerkId(clerkId: string) {
   return data as User | null;
 }
 
+
+export async function getUserByAuthId(authId: string) {
+  const { data, error } = await supabaseAdmin
+    .from('users')
+    .select('*')
+    .eq('auth_id', authId)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data as User | null;
+}
+
 export async function getUserByEmail(email: string) {
   const { data, error } = await supabaseAdmin
     .from('users')

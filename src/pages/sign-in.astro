@@ -6,7 +6,7 @@
 import '../styles/global.css';
 import { getSiteSettings } from '../lib/data/site-settings-loader';
 const siteSettings = await getSiteSettings();
-import { SignIn } from '@clerk/astro/react';
+import SignInForm from '../components/auth/SignInForm';
 
 const afterSignInUrl = Astro.url.searchParams.get('redirect_url') || '/account';
 ---
@@ -95,36 +95,8 @@ const afterSignInUrl = Astro.url.searchParams.get('redirect_url') || '/account';
             </p>
           </div>
 
-          <!-- Clerk Sign In Component -->
-          <div class="flex justify-center">
-            <SignIn
-              client:load
-              routing="hash"
-              afterSignInUrl={afterSignInUrl}
-              signUpUrl="/sign-up"
-              appearance={{
-                elements: {
-                  rootBox: 'w-full max-w-md',
-                  card: 'shadow-xl border-0 rounded-xl p-6',
-                  headerTitle: 'hidden',
-                  headerSubtitle: 'hidden',
-                  socialButtonsBlockButton: 'border border-gray-200 hover:bg-gray-50 hover:border-[#DDC89D] transition-all duration-300 py-3',
-                  socialButtonsBlockButtonText: 'font-medium text-[#293647]',
-                  dividerLine: 'bg-gray-200',
-                  dividerText: 'text-[#4E6E82] text-sm',
-                  formFieldLabel: 'text-[#293647] font-medium mb-1',
-                  formFieldInput: 'border border-gray-300 focus:border-[#13326A] focus:ring-1 focus:ring-[#13326A] rounded-lg py-3 px-4',
-                  formButtonPrimary: 'bg-[#13326A] hover:bg-[#0C2044] text-white font-semibold py-3 rounded-lg transition-all duration-300 w-full',
-                  footerAction: 'justify-center',
-                  footerActionLink: 'text-[#13326A] hover:text-[#EA4C22] font-semibold transition-colors',
-                  identityPreviewEditButton: 'text-[#13326A] hover:text-[#EA4C22]',
-                  formFieldInputShowPasswordButton: 'text-[#4E6E82] hover:text-[#13326A]',
-                  alert: 'rounded-lg',
-                  alertText: 'text-sm',
-                },
-              }}
-            />
-          </div>
+          <!-- Sign In Form -->
+          <SignInForm client:load redirectUrl={afterSignInUrl} />
 
           <!-- Additional Links -->
           <div class="mt-8 text-center space-y-4">

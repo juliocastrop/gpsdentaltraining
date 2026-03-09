@@ -17,6 +17,7 @@ import FeaturedSpeakers from '../components/home/FeaturedSpeakers';
 import WhyChooseGPS from '../components/home/WhyChooseGPS';
 import NewsletterSignup from '../components/home/NewsletterSignup';
 import Footer from '../components/layout/Footer';
+import { getSiteSettings, getFooterProps } from '../lib/data/site-settings-loader';
 import AIAssistant from '../components/chat/AIAssistant';
 
 // Import the homepage data loader
@@ -25,6 +26,8 @@ import { getUpcomingEvents } from '../lib/supabase/queries';
 
 // Load homepage data from Strapi (with fallback to static)
 const homepageData = await loadHomepageData();
+const siteSettings = await getSiteSettings();
+const footerProps = getFooterProps(siteSettings);
 
 // If courses section is enabled and we don't have courses from Strapi,
 // load from Supabase (for ticket/pricing data)
@@ -289,6 +292,6 @@ const isStrapi = homepageData.dataSource === 'strapi';
 
   <!-- Custom Bicolor Footer -->
   <Fragment slot="footer">
-    <Footer client:load />
+    <Footer {...footerProps} client:load />
   </Fragment>
 </BaseLayout>

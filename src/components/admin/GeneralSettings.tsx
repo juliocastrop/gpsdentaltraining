@@ -5,6 +5,11 @@
 import { useState, useRef } from 'react';
 import AdminShell from './AdminShell';
 
+interface FooterLink {
+  label: string;
+  href: string;
+}
+
 interface GeneralSettingsData {
   // Company Info
   company_name: string;
@@ -45,6 +50,15 @@ interface GeneralSettingsData {
   ce_provider_id: string;
   default_event_capacity: number;
   waitlist_expiration_hours: number;
+
+  // Footer
+  footer_description: string;
+  footer_links: FooterLink[];
+  footer_copyright: string;
+  footer_show_pace: boolean;
+  footer_pace_image_url: string;
+  footer_pace_text: string;
+  footer_bottom_links: FooterLink[];
 }
 
 interface GeneralSettingsProps {
@@ -67,8 +81,9 @@ export default function GeneralSettings({
   const logoInputRef = useRef<HTMLInputElement>(null);
   const logoWhiteInputRef = useRef<HTMLInputElement>(null);
   const faviconInputRef = useRef<HTMLInputElement>(null);
+  const paceImageInputRef = useRef<HTMLInputElement>(null);
 
-  const handleImageUpload = async (file: File, field: 'logo_url' | 'logo_white_url' | 'favicon_url') => {
+  const handleImageUpload = async (file: File, field: 'logo_url' | 'logo_white_url' | 'favicon_url' | 'footer_pace_image_url') => {
     setUploadError(null);
 
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml', 'image/x-icon', 'image/vnd.microsoft.icon'];
@@ -111,6 +126,7 @@ export default function GeneralSettings({
     { id: 'company', label: 'Company Info' },
     { id: 'contact', label: 'Contact & Address' },
     { id: 'social', label: 'Social Media' },
+    { id: 'footer', label: 'Footer' },
     { id: 'notifications', label: 'Notifications' },
     { id: 'business', label: 'Business Settings' },
   ];
@@ -621,6 +637,291 @@ export default function GeneralSettings({
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* Footer Tab */}
+        {activeTab === 'footer' && (
+          <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-6">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-1">Footer Settings</h3>
+              <p className="text-sm text-gray-500">Customize footer content, links, and copyright text</p>
+            </div>
+
+            {/* Description */}
+            <div>
+              <label className={labelClass}>Footer Description</label>
+              <textarea
+                value={settings.footer_description}
+                onChange={(e) => setSettings({ ...settings, footer_description: e.target.value })}
+                className={`${inputClass} h-20`}
+                placeholder="Advanced Education in Implant, Restorative and Digital dentistry"
+              />
+              <p className="mt-1 text-xs text-gray-500">Shown below the logo in the footer</p>
+            </div>
+
+            {/* PACE Section */}
+            <div className="border-t border-gray-100 pt-5">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-semibold text-gray-800">PACE Certification Badge</h4>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={settings.footer_show_pace}
+                    onChange={(e) => setSettings({ ...settings, footer_show_pace: e.target.checked })}
+                    className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-600">Show PACE badge</span>
+                </label>
+              </div>
+              {settings.footer_show_pace && (
+                <div className="space-y-4">
+                  {/* PACE Image Upload */}
+                  <div>
+                    <label className={labelClass}>PACE Badge Image</label>
+                    <input
+                      ref={paceImageInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/svg+xml"
+                      aria-label="Upload PACE badge image"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleImageUpload(file, 'footer_pace_image_url');
+                        e.target.value = '';
+                      }}
+                    />
+                    <div className="flex items-center gap-4">
+                      {settings.footer_pace_image_url ? (
+                        <div className="relative group inline-block">
+                          <img
+                            src={settings.footer_pace_image_url}
+                            alt="PACE badge"
+                            className="h-14 w-14 object-contain bg-gray-800 rounded-lg border border-gray-200 p-1"
+                          />
+                          <div className="absolute inset-0 bg-black/50 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => paceImageInputRef.current?.click()}
+                              className="px-1.5 py-1 bg-white text-gray-700 text-[10px] rounded hover:bg-gray-100"
+                            >
+                              Change
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setSettings({ ...settings, footer_pace_image_url: '' })}
+                              className="px-1.5 py-1 bg-red-500 text-white text-[10px] rounded hover:bg-red-600"
+                            >
+                              X
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div
+                          onClick={() => paceImageInputRef.current?.click()}
+                          className={`border-2 border-dashed rounded-lg p-3 text-center cursor-pointer transition-colors w-20 ${
+                            uploadingField === 'footer_pace_image_url'
+                              ? 'border-blue-300 bg-blue-50'
+                              : 'border-gray-300 hover:border-blue-400 hover:bg-gray-50'
+                          }`}
+                        >
+                          {uploadingField === 'footer_pace_image_url' ? (
+                            <svg className="animate-spin h-5 w-5 mx-auto text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                            </svg>
+                          ) : (
+                            <>
+                              <svg className="mx-auto h-6 w-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              </svg>
+                              <p className="text-[10px] text-gray-500 mt-1">Upload</p>
+                            </>
+                          )}
+                        </div>
+                      )}
+                      <div className="text-xs text-gray-500">
+                        <p>Upload your PACE certification badge image.</p>
+                        <p className="text-gray-400">If empty, a default SVG icon is shown.</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                  <label className={labelClass}>PACE Description</label>
+                  <textarea
+                    value={settings.footer_pace_text}
+                    onChange={(e) => setSettings({ ...settings, footer_pace_text: e.target.value })}
+                    className={`${inputClass} h-16`}
+                    placeholder="Academy of General Dentistry&#10;Program Approval for Continuing Education"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">One line per row. Shown next to the PACE badge.</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer Links */}
+            <div className="border-t border-gray-100 pt-5">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-semibold text-gray-800">Helpful Links</h4>
+                <button
+                  type="button"
+                  onClick={() => setSettings({
+                    ...settings,
+                    footer_links: [...settings.footer_links, { label: '', href: '' }],
+                  })}
+                  className="text-sm text-[#0B52AC] hover:text-[#094392] font-medium"
+                >
+                  + Add Link
+                </button>
+              </div>
+              <div className="space-y-3">
+                {settings.footer_links.map((link, index) => (
+                  <div key={index} className="flex items-center gap-3">
+                    <div className="flex-1 grid grid-cols-2 gap-3">
+                      <input
+                        type="text"
+                        value={link.label}
+                        onChange={(e) => {
+                          const updated = [...settings.footer_links];
+                          updated[index] = { ...updated[index], label: e.target.value };
+                          setSettings({ ...settings, footer_links: updated });
+                        }}
+                        className={inputClass}
+                        placeholder="Label"
+                      />
+                      <input
+                        type="text"
+                        value={link.href}
+                        onChange={(e) => {
+                          const updated = [...settings.footer_links];
+                          updated[index] = { ...updated[index], href: e.target.value };
+                          setSettings({ ...settings, footer_links: updated });
+                        }}
+                        className={inputClass}
+                        placeholder="/page-url"
+                      />
+                    </div>
+                    <div className="flex items-center gap-1">
+                      {index > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = [...settings.footer_links];
+                            [updated[index - 1], updated[index]] = [updated[index], updated[index - 1]];
+                            setSettings({ ...settings, footer_links: updated });
+                          }}
+                          className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
+                          title="Move up"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>
+                        </button>
+                      )}
+                      {index < settings.footer_links.length - 1 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = [...settings.footer_links];
+                            [updated[index], updated[index + 1]] = [updated[index + 1], updated[index]];
+                            setSettings({ ...settings, footer_links: updated });
+                          }}
+                          className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
+                          title="Move down"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = settings.footer_links.filter((_, i) => i !== index);
+                          setSettings({ ...settings, footer_links: updated });
+                        }}
+                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+                        title="Remove"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {settings.footer_links.length === 0 && (
+                  <p className="text-sm text-gray-400 text-center py-4">No links yet. Click "+ Add Link" to add one.</p>
+                )}
+              </div>
+            </div>
+
+            {/* Bottom Bar Links */}
+            <div className="border-t border-gray-100 pt-5">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-semibold text-gray-800">Bottom Bar Links</h4>
+                <button
+                  type="button"
+                  onClick={() => setSettings({
+                    ...settings,
+                    footer_bottom_links: [...settings.footer_bottom_links, { label: '', href: '' }],
+                  })}
+                  className="text-sm text-[#0B52AC] hover:text-[#094392] font-medium"
+                >
+                  + Add Link
+                </button>
+              </div>
+              <div className="space-y-3">
+                {settings.footer_bottom_links.map((link, index) => (
+                  <div key={index} className="flex items-center gap-3">
+                    <div className="flex-1 grid grid-cols-2 gap-3">
+                      <input
+                        type="text"
+                        value={link.label}
+                        onChange={(e) => {
+                          const updated = [...settings.footer_bottom_links];
+                          updated[index] = { ...updated[index], label: e.target.value };
+                          setSettings({ ...settings, footer_bottom_links: updated });
+                        }}
+                        className={inputClass}
+                        placeholder="Label"
+                      />
+                      <input
+                        type="text"
+                        value={link.href}
+                        onChange={(e) => {
+                          const updated = [...settings.footer_bottom_links];
+                          updated[index] = { ...updated[index], href: e.target.value };
+                          setSettings({ ...settings, footer_bottom_links: updated });
+                        }}
+                        className={inputClass}
+                        placeholder="/page-url"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const updated = settings.footer_bottom_links.filter((_, i) => i !== index);
+                        setSettings({ ...settings, footer_bottom_links: updated });
+                      }}
+                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+                      title="Remove"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Copyright */}
+            <div className="border-t border-gray-100 pt-5">
+              <label className={labelClass}>Copyright Text</label>
+              <input
+                type="text"
+                value={settings.footer_copyright}
+                onChange={(e) => setSettings({ ...settings, footer_copyright: e.target.value })}
+                className={inputClass}
+                placeholder="© {year} GPS Dental Training. All rights reserved."
+              />
+              <p className="mt-1 text-xs text-gray-500">Use <code className="bg-gray-100 px-1 rounded">{'{year}'}</code> to auto-insert the current year</p>
             </div>
           </div>
         )}

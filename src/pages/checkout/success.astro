@@ -4,8 +4,9 @@
  * Shown after successful Stripe payment
  */
 import '../../styles/global.css';
-import { getSiteSettings } from '../../lib/data/site-settings-loader';
+import { getSiteSettings, getFooterProps } from '../../lib/data/site-settings-loader';
 const siteSettings = await getSiteSettings();
+const footerProps = getFooterProps(siteSettings);
 import Navbar from '../../components/layout/Navbar';
 import Footer from '../../components/layout/Footer';
 import { getOrderByStripeSession } from '../../lib/supabase/queries';
@@ -65,6 +66,7 @@ function formatPrice(price: number): string {
     <Navbar
       logo={siteSettings.logo_url}
       transparent={false}
+      isLoggedIn={!!Astro.locals.userId}
       client:load
     />
 
@@ -272,6 +274,6 @@ function formatPrice(price: number): string {
       </div>
     </main>
 
-    <Footer client:load />
+    <Footer {...footerProps} client:load />
   </body>
 </html>

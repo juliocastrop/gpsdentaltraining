@@ -9,8 +9,9 @@
  * - Transactional data (tickets, availability) always from Supabase
  */
 import '../../styles/global.css';
-import { getSiteSettings } from '../../lib/data/site-settings-loader';
+import { getSiteSettings, getFooterProps } from '../../lib/data/site-settings-loader';
 const siteSettings = await getSiteSettings();
+const footerProps = getFooterProps(siteSettings);
 import Navbar from '../../components/layout/Navbar';
 import Footer from '../../components/layout/Footer';
 import CourseCard from '../../components/events/CourseCard.astro';
@@ -114,6 +115,7 @@ const pageDescription = "Explore our comprehensive dental training courses and e
       logo={siteSettings.logo_url}
       logoWhite={siteSettings.logo_white_url}
       transparent={true}
+      isLoggedIn={!!Astro.locals.userId}
       client:load
     />
 
@@ -354,7 +356,7 @@ const pageDescription = "Explore our comprehensive dental training courses and e
     </main>
 
     <!-- Footer -->
-    <Footer client:load />
+    <Footer {...footerProps} client:load />
 
     <!-- Filter & Sort Script -->
     <script>

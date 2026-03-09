@@ -4,29 +4,19 @@
  * Shows user's earned certificates with download options
  */
 import '../../styles/global.css';
-import { getSiteSettings } from '../../lib/data/site-settings-loader';
+import { getSiteSettings, getFooterProps } from '../../lib/data/site-settings-loader';
 const siteSettings = await getSiteSettings();
+const footerProps = getFooterProps(siteSettings);
 import Navbar from '../../components/layout/Navbar';
 import Footer from '../../components/layout/Footer';
 import { supabaseAdmin } from '../../lib/supabase/client';
 import { getUserCertificates } from '../../lib/supabase/queries';
 
-// Check if Clerk is configured
-const clerkConfigured = !!process.env.PUBLIC_CLERK_PUBLISHABLE_KEY;
+// Get user from Supabase Auth
+const userId = Astro.locals.userId;
 
-// Get user from Clerk if available
-let userId: string | null = null;
-try {
-  if (clerkConfigured && Astro.locals.auth) {
-    const auth = Astro.locals.auth();
-    userId = auth?.userId || null;
-  }
-} catch {
-  // Clerk not available
-}
-
-// Redirect if Clerk is configured but user is not logged in
-if (clerkConfigured && !userId) {
+// Redirect if not logged in
+if (!userId) {
   return Astro.redirect('/sign-in?redirect_url=/account/certificates');
 }
 
@@ -40,7 +30,7 @@ if (userId) {
   const { data: userData } = await supabaseAdmin
     .from('users')
     .select('*')
-    .eq('clerk_id', userId)
+    .eq('auth_id', userId)
     .single();
   user = userData;
 
@@ -91,6 +81,8 @@ function formatShortDate(dateStr: string): string {
     <Navbar
       logo={siteSettings.logo_url}
       transparent={false}
+      isLoggedIn={!!Astro.locals.userId}
+      userName={user?.first_name || undefined}
       client:load
     />
 
@@ -266,6 +258,6 @@ function formatShortDate(dateStr: string): string {
       </div>
     </main>
 
-    <Footer client:load />
+    <Footer {...footerProps} client:load />
   </body>
 </html>

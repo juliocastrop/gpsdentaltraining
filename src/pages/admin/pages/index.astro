@@ -1,0 +1,71 @@
+---
+/**
+ * Admin Pages Management - GPS Dental Training
+ * List and manage CMS pages
+ */
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import PagesManagement from '../../../components/admin/PagesManagement';
+import { supabaseAdmin } from '../../../lib/supabase/client';
+
+// Auth check
+const userId = Astro.locals.userId;
+let isAdmin = false;
+let userName = 'Admin';
+let userEmail = 'admin@gpsdentaltraining.com';
+
+if (userId) {
+  const { data: userData } = await supabaseAdmin
+    .from('users')
+    .select('role, first_name, last_name, email')
+    .eq('auth_id', userId)
+    .single();
+
+  isAdmin = userData?.role === 'admin' || userData?.role === 'staff';
+  if (userData?.first_name) {
+    userName = (userData.first_name + ' ' + (userData.last_name || '')).trim();
+  }
+  if (userData?.email) {
+    userEmail = userData.email;
+  }
+} else if (import.meta.env.DEV) {
+  isAdmin = true;
+}
+if (!userId || !isAdmin) {
+  return Astro.redirect('/sign-in?redirect_url=/admin/pages');
+}
+
+// Auto-init system pages if they don't exist
+const systemPages = [
+  { slug: 'about', title: 'About Us', subtitle: 'Learn more about GPS Dental Training', status: 'published', content: { mission: '', vision: '', stats: [], facilities: [], location: {} } },
+  { slug: 'contact', title: 'Contact', subtitle: 'Get in touch with us', status: 'published', content: { phone: '', email: '', address: '', hours: {}, social: {} } },
+];
+
+for (const sp of systemPages) {
+  const { data: existing } = await supabaseAdmin
+    .from('pages')
+    .select('id')
+    .eq('slug', sp.slug)
+    .maybeSingle();
+
+  if (!existing) {
+    await supabaseAdmin.from('pages').insert(sp);
+  }
+}
+
+// Fetch pages
+const { data: pages } = await supabaseAdmin
+  .from('pages')
+  .select('*')
+  .order('updated_at', { ascending: false });
+
+const currentPath = Astro.url.pathname;
+---
+
+<AdminLayout title="Pages">
+  <PagesManagement
+    client:load
+    currentPath={currentPath}
+    user={{ name: userName, email: userEmail }}
+    pages={pages || []}
+  />
+</AdminLayout>

@@ -6,6 +6,7 @@
  */
 import Navbar from '../../layout/Navbar';
 import Footer from '../../layout/Footer';
+import { getFooterProps } from '../../../lib/data/site-settings-loader';
 
 interface SessionStats {
   total: number;
@@ -47,6 +48,8 @@ const {
   sessionStats,
 } = Astro.props;
 
+const footerProps = getFooterProps(siteSettings as any);
+
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -62,7 +65,8 @@ function formatCurrency(amount: number): string {
   logo={siteSettings.logo_url}
   logoWhite={siteSettings.logo_white_url}
   transparent={true}
-  client:load
+  isLoggedIn={!!Astro.locals.userId}
+      client:load
 />
 
 <!-- Hero Section -->
@@ -557,4 +561,4 @@ function formatCurrency(amount: number): string {
 </main>
 
 <!-- Footer -->
-<Footer client:load />
+<Footer {...footerProps} client:load />

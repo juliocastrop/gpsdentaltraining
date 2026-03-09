@@ -12,7 +12,7 @@ import { supabaseAdmin } from '../../../lib/supabase/client';
  * Optional fields:
  *   - requested_session_id: UUID of the session they want to attend instead
  *   - reason: Text explaining why they missed the session
- *   - user_id: Clerk user ID for verification (if not using auth headers)
+ *   - user_id: auth user ID for verification
  */
 export const POST: APIRoute = async ({ request }) => {
   try {
@@ -51,7 +51,7 @@ export const POST: APIRoute = async ({ request }) => {
         status,
         sessions_completed,
         sessions_remaining,
-        user:users(id, clerk_id, email, first_name, last_name),
+        user:users(id, auth_id, email, first_name, last_name),
         seminar:seminars(id, title, year)
       `)
       .eq('id', registration_id)
@@ -72,7 +72,7 @@ export const POST: APIRoute = async ({ request }) => {
       const { data: userData } = await supabaseAdmin
         .from('users')
         .select('id')
-        .eq('clerk_id', user_id)
+        .eq('auth_id', user_id)
         .single();
 
       if (userData && userData.id !== registration.user_id) {
@@ -277,14 +277,14 @@ export const POST: APIRoute = async ({ request }) => {
  *
  * Query params:
  *   - registration_id: UUID of the registration to check
- *   - user_id: Clerk user ID
+ *   - user_id: auth user ID
  */
 export const GET: APIRoute = async ({ url }) => {
   try {
     const registrationId = url.searchParams.get('registration_id');
-    const clerkUserId = url.searchParams.get('user_id');
+    const authUserId = url.searchParams.get('user_id');
 
-    if (!registrationId && !clerkUserId) {
+    if (!registrationId && !authUserId) {
       return new Response(JSON.stringify({
         success: false,
         error: 'Either registration_id or user_id is required',
@@ -313,12 +313,12 @@ export const GET: APIRoute = async ({ url }) => {
       query = query.eq('registration_id', registrationId);
     }
 
-    if (clerkUserId) {
-      // Get user ID from clerk ID
+    if (authUserId) {
+      // Get user ID from auth ID
       const { data: userData } = await supabaseAdmin
         .from('users')
         .select('id')
-        .eq('clerk_id', clerkUserId)
+        .eq('auth_id', authUserId)
         .single();
 
       if (userData) {

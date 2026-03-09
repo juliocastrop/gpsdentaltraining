@@ -9,6 +9,7 @@
  */
 import Navbar from '../../layout/Navbar';
 import Footer from '../../layout/Footer';
+import { getFooterProps } from '../../../lib/data/site-settings-loader';
 import CountdownTimer from '../../events/CountdownTimer';
 import TicketSelector from '../../tickets/TicketSelector';
 import WaitlistForm from '../../tickets/WaitlistForm';
@@ -66,6 +67,8 @@ const {
   url,
 } = Astro.props;
 
+const footerProps = getFooterProps(siteSettings as any);
+
 // Helper functions
 function formatScheduleDate(dateStr: string): string {
   if (!dateStr) return '';
@@ -115,7 +118,8 @@ const mapEmbedUrl = `https://www.google.com/maps?q=${encodeURIComponent(mapAddre
   logo={siteSettings.logo_url}
   logoWhite={siteSettings.logo_white_url}
   transparent={true}
-  client:load
+  isLoggedIn={!!Astro.locals.userId}
+      client:load
 />
 
 <!-- Hero Section: Featured Image Background -->
@@ -197,7 +201,8 @@ const mapEmbedUrl = `https://www.google.com/maps?q=${encodeURIComponent(mapAddre
         endDate={event.end_date || ''}
         url={url.toString()}
         variant="icon"
-        client:load
+        isLoggedIn={!!Astro.locals.userId}
+      client:load
       />
     </div>
   </div>
@@ -215,7 +220,8 @@ const mapEmbedUrl = `https://www.google.com/maps?q=${encodeURIComponent(mapAddre
         {isUpcoming && (
           <div class="mb-10 bg-gradient-to-br from-[#0C2044] to-[#173D84] rounded-2xl p-6 md:p-8">
             <h2 class="text-white/70 text-sm uppercase tracking-[0.15em] font-medium mb-5 text-center">This event will start in</h2>
-            <CountdownTimer targetDate={event.start_date} client:load />
+            <CountdownTimer targetDate={event.start_date} isLoggedIn={!!Astro.locals.userId}
+      client:load />
             <div class="text-center mt-5">
               <p class="text-white/60 text-sm">
                 <span class="text-[#DDC89D] font-semibold">{dateDisplay}</span>
@@ -252,7 +258,8 @@ const mapEmbedUrl = `https://www.google.com/maps?q=${encodeURIComponent(mapAddre
               images={event.gallery_images}
               title={cleanTitle}
               columns={2}
-              client:load
+              isLoggedIn={!!Astro.locals.userId}
+      client:load
             />
           </div>
         )}
@@ -281,7 +288,8 @@ const mapEmbedUrl = `https://www.google.com/maps?q=${encodeURIComponent(mapAddre
             {/* Ticket Selector or Waitlist */}
             <div class="p-6">
               {availability.is_available ? (
-                <TicketSelector eventId={event.id} eventTitle={event.title} client:load />
+                <TicketSelector eventId={event.id} eventTitle={event.title} isLoggedIn={!!Astro.locals.userId}
+      client:load />
               ) : (
                 <div>
                   {isSoldOut && (
@@ -290,7 +298,8 @@ const mapEmbedUrl = `https://www.google.com/maps?q=${encodeURIComponent(mapAddre
                       <p class="text-gray-500 text-sm">Join our waitlist to be notified if spots become available.</p>
                     </div>
                   )}
-                  <WaitlistForm eventId={event.id} eventTitle={event.title} client:load />
+                  <WaitlistForm eventId={event.id} eventTitle={event.title} isLoggedIn={!!Astro.locals.userId}
+      client:load />
                 </div>
               )}
             </div>
@@ -581,7 +590,7 @@ const mapEmbedUrl = `https://www.google.com/maps?q=${encodeURIComponent(mapAddre
 )}
 
 <!-- Footer -->
-<Footer client:load />
+<Footer {...footerProps} client:load />
 
 <!-- Day Tab Switching Script -->
 <script>

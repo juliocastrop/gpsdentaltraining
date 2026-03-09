@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
+import { getUser } from '../../../lib/supabase/auth';
 import {
-  getUserByClerkId,
+  getUserByAuthId,
   getUserSeminarRegistrations,
   getUserSeminarCertificates,
   getSeminarSessions,
@@ -9,22 +10,11 @@ import {
 /**
  * GET /api/user/seminars
  * Get current user's seminar registrations and progress
- *
- * Headers:
- *   Authorization: Bearer <clerk_user_id> or passed via query param
- *
- * Query params:
- *   clerkUserId: string - Clerk user ID (alternative to header)
- *   includeCertificates?: boolean - Include seminar certificates
- *   includeSessions?: boolean - Include all sessions for registered seminars
  */
-export const GET: APIRoute = async ({ request, url }) => {
+export const GET: APIRoute = async ({ cookies, url }) => {
   try {
-    // Get user ID from header or query param
-    const authHeader = request.headers.get('Authorization');
-    const clerkUserId = authHeader?.replace('Bearer ', '') || url.searchParams.get('clerkUserId');
-
-    if (!clerkUserId) {
+    const authUser = await getUser(cookies);
+    if (!authUser) {
       return new Response(JSON.stringify({
         success: false,
         error: 'Authentication required',
@@ -34,8 +24,7 @@ export const GET: APIRoute = async ({ request, url }) => {
       });
     }
 
-    // Get user from Clerk ID
-    const user = await getUserByClerkId(clerkUserId);
+    const user = await getUserByAuthId(authUser.id);
     if (!user) {
       return new Response(JSON.stringify({
         success: false,
@@ -88,7 +77,6 @@ export const GET: APIRoute = async ({ request, url }) => {
           ) || 0,
         };
 
-        // Include all sessions if requested
         if (includeSessions && reg.seminar_id) {
           const sessions = await getSeminarSessions(reg.seminar_id);
           const attendedSessionIds = new Set(
@@ -108,11 +96,9 @@ export const GET: APIRoute = async ({ request, url }) => {
       })
     );
 
-    // Separate active and completed
     const activeRegistrations = formattedRegistrations.filter(r => r.status === 'active');
     const completedRegistrations = formattedRegistrations.filter(r => r.status === 'completed');
 
-    // Get certificates if requested
     let certificates = null;
     if (includeCertificates) {
       const userCerts = await getUserSeminarCertificates(user.id);

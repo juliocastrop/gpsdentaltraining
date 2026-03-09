@@ -1298,7 +1298,7 @@ export default function EventDetail({
                     </h3>
                     <div className="space-y-2">
                       <a
-                        href={`/admin/events/${event.id}/attendance`}
+                        href={`/admin/attendance?event=${event.id}`}
                         className="flex items-center gap-2 w-full px-3 py-2 text-left text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -11,6 +11,7 @@ import Card from '../components/ui/Card.astro';
 import IconBox from '../components/ui/IconBox.astro';
 import Badge from '../components/ui/Badge.astro';
 import CTASection from '../components/ui/CTASection.astro';
+import FacilityGallery from '../components/ui/FacilityGallery';
 import { supabaseAdmin } from '../lib/supabase/client';
 import { getTeamMembers } from '../lib/supabase/queries';
 
@@ -72,6 +73,14 @@ const heroStats = content.stats || [
   { value: '1,000+', label: 'Professionals Trained', accent: true },
   { value: '100+', label: 'Courses Delivered' },
   { value: '10,000+', label: 'CE Credits Awarded' },
+];
+
+// Facility gallery images (from content or defaults)
+const galleryImages = content.gallery_images || [
+  { url: 'https://gpsdentaltraining.com/wp-content/uploads/slider3/img-center-05.jpg', caption: 'State-of-the-Art Training Center', alt: 'GPS training classroom with presentation screens' },
+  { url: 'https://gpsdentaltraining.com/wp-content/uploads/slider3/img-navigate-excellence.jpg', caption: 'Precision Digital Imaging', alt: 'Advanced dental imaging technology' },
+  { url: 'https://gpsdentaltraining.com/wp-content/uploads/2025/06/image-building-unique-facility.jpg.webp', caption: 'Dental Implant & Reconstruction Center', alt: 'GPS building exterior in Duluth, GA' },
+  { url: 'https://gpsdentaltraining.com/wp-content/uploads/slider3/img-precision-learning.jpg', caption: 'Hands-On Clinical Training', alt: 'Hands-on dental training environment' },
 ];
 
 // Fallback team data if database is empty
@@ -184,6 +193,13 @@ const facilityIcons: Record<string, string> = {
       ))}
     </div>
 
+    <!-- Facility Gallery -->
+    {galleryImages.length > 0 && (
+      <div class="mb-12 lg:mb-16">
+        <FacilityGallery client:visible images={galleryImages} title="Our Training Facility" />
+      </div>
+    )}
+
     <!-- Location Card -->
     <div class="bg-gradient-to-r from-[#0C2044] via-[#13326A] to-[#173D84] rounded-2xl p-8 md:p-10 max-w-4xl mx-auto">
       <div class="flex flex-col md:flex-row items-center gap-8">
@@ -220,59 +236,93 @@ const facilityIcons: Record<string, string> = {
       description="Our instructors are internationally recognized experts with extensive clinical and teaching experience in prosthodontics, implantology, and dental laboratory technology."
     />
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
-      {team.map((member: any) => (
-        <div class="group bg-white rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-100">
-          <!-- Photo -->
-          <div class="relative h-80 overflow-hidden">
-            <img
-              src={member.photo_url}
-              alt={member.name}
-              class="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500"
-            />
-            <div class="absolute inset-0 bg-gradient-to-t from-[#0C2044]/80 via-transparent to-transparent"></div>
+    <!-- Scroll carousel for team (snap scroll, Netflix-style) -->
+    <div class="relative max-w-7xl mx-auto">
+      <!-- Fade edges -->
+      <div class="hidden lg:block absolute left-0 top-0 bottom-0 w-16 bg-gradient-to-r from-white to-transparent z-10 pointer-events-none"></div>
+      <div class="hidden lg:block absolute right-0 top-0 bottom-0 w-16 bg-gradient-to-l from-white to-transparent z-10 pointer-events-none"></div>
 
-            <!-- Credentials Badge -->
-            <div class="absolute top-4 left-4">
-              <Badge variant="gold">{member.credentials}</Badge>
+      <div class="flex gap-6 overflow-x-auto snap-x snap-mandatory pb-6 px-4 lg:px-8 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent" style="scroll-padding: 1rem;">
+        {team.map((member: any) => (
+          <div class="group flex-shrink-0 w-[320px] lg:w-[360px] bg-white rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-100 snap-start">
+            <!-- Photo -->
+            <div class="relative h-80 overflow-hidden">
+              <img
+                src={member.photo_url}
+                alt={member.name}
+                class="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500"
+              />
+              <div class="absolute inset-0 bg-gradient-to-t from-[#0C2044]/80 via-transparent to-transparent"></div>
+
+              <!-- Credentials Badge -->
+              <div class="absolute top-4 left-4">
+                <Badge variant="gold">{member.credentials}</Badge>
+              </div>
+
+              <!-- Name overlay -->
+              <div class="absolute bottom-0 left-0 right-0 p-6">
+                <h3 class="text-2xl font-bold text-white">{member.name}</h3>
+                <p class="text-[#DDC89D] font-semibold">{member.title}</p>
+              </div>
             </div>
 
-            <!-- Name overlay -->
-            <div class="absolute bottom-0 left-0 right-0 p-6">
-              <h3 class="text-2xl font-bold text-white">{member.name}</h3>
-              <p class="text-[#DDC89D] font-semibold">{member.title}</p>
+            <!-- Info -->
+            <div class="p-6">
+              <div class="flex items-center gap-2 mb-3">
+                <svg class="w-5 h-5 text-[#13326A]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+                </svg>
+                <span class="text-[#4E6E82] font-medium text-sm">{member.role}</span>
+              </div>
+
+              <p class="text-[#4E6E82] leading-relaxed text-sm mb-4 line-clamp-3">
+                {member.short_bio || member.bio}
+              </p>
+
+              <!-- Social Links -->
+              {member.social_links && Object.keys(member.social_links).some((k: string) => member.social_links[k]) && (
+                <div class="flex items-center gap-3 mb-4 pt-3 border-t border-gray-100">
+                  {member.social_links.linkedin && (
+                    <a href={member.social_links.linkedin} target="_blank" rel="noopener" class="text-gray-400 hover:text-[#0077B5] transition-colors" title="LinkedIn">
+                      <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                    </a>
+                  )}
+                  {member.social_links.instagram && (
+                    <a href={member.social_links.instagram} target="_blank" rel="noopener" class="text-gray-400 hover:text-[#E4405F] transition-colors" title="Instagram">
+                      <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C16.67.014 16.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>
+                    </a>
+                  )}
+                  {member.social_links.facebook && (
+                    <a href={member.social_links.facebook} target="_blank" rel="noopener" class="text-gray-400 hover:text-[#1877F2] transition-colors" title="Facebook">
+                      <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                    </a>
+                  )}
+                  {member.social_links.youtube && (
+                    <a href={member.social_links.youtube} target="_blank" rel="noopener" class="text-gray-400 hover:text-[#FF0000] transition-colors" title="YouTube">
+                      <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M23.498 6.186a3.016 3.016 0 00-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 00.502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 002.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 002.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+                    </a>
+                  )}
+                </div>
+              )}
+
+              <a
+                href={`/speakers/${member.slug}`}
+                class="inline-flex items-center gap-2 text-[#0B52AC] font-semibold hover:text-[#13326A] transition-colors text-sm"
+              >
+                View Full Profile
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                </svg>
+              </a>
             </div>
           </div>
-
-          <!-- Info -->
-          <div class="p-6">
-            <div class="flex items-center gap-2 mb-4">
-              <svg class="w-5 h-5 text-[#13326A]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
-              </svg>
-              <span class="text-[#4E6E82] font-medium">{member.role}</span>
-            </div>
-
-            <p class="text-[#4E6E82] leading-relaxed text-sm mb-4 line-clamp-4">
-              {member.short_bio || member.bio}
-            </p>
-
-            <a
-              href={`/speakers/${member.slug}`}
-              class="inline-flex items-center gap-2 text-[#0B52AC] font-semibold hover:text-[#13326A] transition-colors"
-            >
-              View Full Profile
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-              </svg>
-            </a>
-          </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
 
+    <!-- View all link -->
     {team.length > 3 && (
-      <div class="text-center mt-12">
+      <div class="text-center mt-8">
         <a
           href="/speakers"
           class="inline-flex items-center gap-2 bg-[#13326A] text-white px-8 py-4 rounded-xl font-bold hover:bg-[#0B52AC] transition-all"

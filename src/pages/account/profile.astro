@@ -1,0 +1,324 @@
+---
+/**
+ * Account Profile - GPS Dental Training
+ * Edit profile information and change password
+ */
+import '../../styles/global.css';
+import { getSiteSettings, getFooterProps } from '../../lib/data/site-settings-loader';
+const siteSettings = await getSiteSettings();
+const footerProps = getFooterProps(siteSettings);
+import Navbar from '../../components/layout/Navbar';
+import Footer from '../../components/layout/Footer';
+import { supabaseAdmin } from '../../lib/supabase/client';
+
+const userId = Astro.locals.userId;
+
+if (!userId) {
+  return Astro.redirect('/sign-in?redirect_url=/account/profile');
+}
+
+const { data: user } = await supabaseAdmin
+  .from('users')
+  .select('id, email, first_name, last_name, phone, role, created_at')
+  .eq('auth_id', userId)
+  .single();
+
+if (!user) {
+  return Astro.redirect('/sign-in');
+}
+
+function formatDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+---
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <link rel="icon" href={siteSettings.favicon_url} />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Open+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+    <title>My Profile | GPS Dental Training</title>
+  </head>
+
+  <body class="min-h-screen flex flex-col bg-[#F8F9FA]">
+    <Navbar
+      logo={siteSettings.logo_url}
+      transparent={false}
+      isLoggedIn={true}
+      userName={user.first_name || undefined}
+      client:load
+    />
+
+    <div class="h-20"></div>
+
+    <main class="flex-1 py-8 lg:py-12">
+      <div class="container mx-auto px-4 lg:px-8 max-w-3xl">
+        <!-- Breadcrumb -->
+        <nav class="flex items-center gap-2 text-sm text-gray-500 mb-6">
+          <a href="/account" class="hover:text-[#0B52AC] transition-colors">My Account</a>
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+          </svg>
+          <span class="text-[#0C2044] font-medium">Profile</span>
+        </nav>
+
+        <h1 class="text-3xl font-bold text-[#0C2044] mb-2">My Profile</h1>
+        <p class="text-gray-600 mb-8">Manage your personal information and account security.</p>
+
+        <!-- Messages -->
+        <div id="messageArea" class="hidden mb-6 px-4 py-3 rounded-lg text-sm"></div>
+
+        <!-- Profile Information -->
+        <div class="bg-white rounded-xl shadow-sm p-6 mb-6">
+          <div class="flex items-center justify-between mb-6">
+            <h2 class="text-xl font-bold text-[#0C2044] flex items-center gap-2">
+              <svg class="w-5 h-5 text-[#0B52AC]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+              </svg>
+              Personal Information
+            </h2>
+            <span class="text-xs text-gray-400">Member since {formatDate(user.created_at)}</span>
+          </div>
+
+          <form id="profileForm" class="space-y-5">
+            <div class="grid md:grid-cols-2 gap-5">
+              <div>
+                <label for="first_name" class="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+                <input
+                  type="text"
+                  id="first_name"
+                  name="first_name"
+                  value={user.first_name || ''}
+                  class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC]/20 focus:border-[#0B52AC] outline-none transition-colors"
+                  placeholder="Enter your first name"
+                />
+              </div>
+              <div>
+                <label for="last_name" class="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+                <input
+                  type="text"
+                  id="last_name"
+                  name="last_name"
+                  value={user.last_name || ''}
+                  class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC]/20 focus:border-[#0B52AC] outline-none transition-colors"
+                  placeholder="Enter your last name"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label for="email" class="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+              <input
+                type="email"
+                id="email"
+                value={user.email}
+                disabled
+                class="w-full px-4 py-3 border border-gray-200 rounded-lg bg-gray-50 text-gray-500 cursor-not-allowed"
+              />
+              <p class="text-xs text-gray-400 mt-1">Email cannot be changed. Contact support if you need to update it.</p>
+            </div>
+
+            <div>
+              <label for="phone" class="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+              <input
+                type="tel"
+                id="phone"
+                name="phone"
+                value={user.phone || ''}
+                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC]/20 focus:border-[#0B52AC] outline-none transition-colors"
+                placeholder="(555) 123-4567"
+              />
+            </div>
+
+            <div class="flex justify-end pt-2">
+              <button
+                type="submit"
+                id="saveProfileBtn"
+                class="px-6 py-3 bg-[#0B52AC] text-white font-semibold rounded-lg hover:bg-[#0C2044] transition-colors inline-flex items-center gap-2"
+              >
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                </svg>
+                Save Changes
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Change Password -->
+        <div class="bg-white rounded-xl shadow-sm p-6 mb-6">
+          <h2 class="text-xl font-bold text-[#0C2044] mb-6 flex items-center gap-2">
+            <svg class="w-5 h-5 text-[#0B52AC]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+            </svg>
+            Change Password
+          </h2>
+
+          <div id="passwordMessage" class="hidden mb-4 px-4 py-3 rounded-lg text-sm"></div>
+
+          <form id="passwordForm" class="space-y-5">
+            <div>
+              <label for="current_password" class="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
+              <input
+                type="password"
+                id="current_password"
+                name="current_password"
+                required
+                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC]/20 focus:border-[#0B52AC] outline-none transition-colors"
+                placeholder="Enter your current password"
+              />
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-5">
+              <div>
+                <label for="new_password" class="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+                <input
+                  type="password"
+                  id="new_password"
+                  name="new_password"
+                  required
+                  minlength="6"
+                  class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC]/20 focus:border-[#0B52AC] outline-none transition-colors"
+                  placeholder="At least 6 characters"
+                />
+              </div>
+              <div>
+                <label for="confirm_password" class="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
+                <input
+                  type="password"
+                  id="confirm_password"
+                  name="confirm_password"
+                  required
+                  minlength="6"
+                  class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0B52AC]/20 focus:border-[#0B52AC] outline-none transition-colors"
+                  placeholder="Confirm new password"
+                />
+              </div>
+            </div>
+
+            <div class="flex justify-end pt-2">
+              <button
+                type="submit"
+                id="changePasswordBtn"
+                class="px-6 py-3 bg-[#0C2044] text-white font-semibold rounded-lg hover:bg-[#0B52AC] transition-colors inline-flex items-center gap-2"
+              >
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                </svg>
+                Update Password
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Back to Account -->
+        <div class="text-center">
+          <a href="/account" class="text-[#0B52AC] font-medium hover:underline inline-flex items-center gap-1">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+            </svg>
+            Back to Dashboard
+          </a>
+        </div>
+      </div>
+    </main>
+
+    <Footer {...footerProps} client:load />
+
+    <script>
+      function showMessage(elementId: string, message: string, isError: boolean) {
+        const el = document.getElementById(elementId);
+        if (!el) return;
+        el.className = `mb-6 px-4 py-3 rounded-lg text-sm ${isError ? 'bg-red-50 text-red-800 border border-red-200' : 'bg-green-50 text-green-800 border border-green-200'}`;
+        el.textContent = message;
+        el.classList.remove('hidden');
+        if (!isError) {
+          setTimeout(() => el.classList.add('hidden'), 5000);
+        }
+      }
+
+      // Profile form
+      document.getElementById('profileForm')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById('saveProfileBtn') as HTMLButtonElement;
+        btn.disabled = true;
+        btn.textContent = 'Saving...';
+
+        try {
+          const res = await fetch('/api/user/profile', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              first_name: (document.getElementById('first_name') as HTMLInputElement).value,
+              last_name: (document.getElementById('last_name') as HTMLInputElement).value,
+              phone: (document.getElementById('phone') as HTMLInputElement).value,
+            }),
+          });
+
+          const data = await res.json();
+
+          if (res.ok) {
+            showMessage('messageArea', 'Profile updated successfully!', false);
+          } else {
+            showMessage('messageArea', data.error || 'Failed to update profile', true);
+          }
+        } catch {
+          showMessage('messageArea', 'Something went wrong. Please try again.', true);
+        } finally {
+          btn.disabled = false;
+          btn.innerHTML = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> Save Changes`;
+        }
+      });
+
+      // Password form
+      document.getElementById('passwordForm')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById('changePasswordBtn') as HTMLButtonElement;
+        const newPass = (document.getElementById('new_password') as HTMLInputElement).value;
+        const confirmPass = (document.getElementById('confirm_password') as HTMLInputElement).value;
+
+        if (newPass !== confirmPass) {
+          showMessage('passwordMessage', 'New passwords do not match', true);
+          return;
+        }
+
+        btn.disabled = true;
+        btn.textContent = 'Updating...';
+
+        try {
+          const res = await fetch('/api/user/change-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              current_password: (document.getElementById('current_password') as HTMLInputElement).value,
+              new_password: newPass,
+            }),
+          });
+
+          const data = await res.json();
+
+          if (res.ok) {
+            showMessage('passwordMessage', 'Password updated successfully!', false);
+            (document.getElementById('passwordForm') as HTMLFormElement).reset();
+          } else {
+            showMessage('passwordMessage', data.error || 'Failed to update password', true);
+          }
+        } catch {
+          showMessage('passwordMessage', 'Something went wrong. Please try again.', true);
+        } finally {
+          btn.disabled = false;
+          btn.innerHTML = `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg> Update Password`;
+        }
+      });
+    </script>
+  </body>
+</html>

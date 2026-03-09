@@ -1,0 +1,59 @@
+---
+/**
+ * Admin Page Editor - GPS Dental Training
+ * Edit a CMS page with block-based content editor
+ */
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import PageEditor from '../../../components/admin/PageEditor';
+import { supabaseAdmin } from '../../../lib/supabase/client';
+
+// Auth check
+const userId = Astro.locals.userId;
+let isAdmin = false;
+let userName = 'Admin';
+let userEmail = 'admin@gpsdentaltraining.com';
+
+if (userId) {
+  const { data: userData } = await supabaseAdmin
+    .from('users')
+    .select('role, first_name, last_name, email')
+    .eq('auth_id', userId)
+    .single();
+
+  isAdmin = userData?.role === 'admin' || userData?.role === 'staff';
+  if (userData?.first_name) {
+    userName = (userData.first_name + ' ' + (userData.last_name || '')).trim();
+  }
+  if (userData?.email) {
+    userEmail = userData.email;
+  }
+} else if (import.meta.env.DEV) {
+  isAdmin = true;
+}
+if (!userId || !isAdmin) {
+  return Astro.redirect('/sign-in?redirect_url=/admin/pages');
+}
+
+// Fetch the page
+const { id } = Astro.params;
+const { data: page } = await supabaseAdmin
+  .from('pages')
+  .select('*')
+  .eq('id', id)
+  .single();
+
+if (!page) {
+  return Astro.redirect('/admin/pages');
+}
+
+const currentPath = Astro.url.pathname;
+---
+
+<AdminLayout title={`Edit: ${page.title}`}>
+  <PageEditor
+    client:load
+    currentPath={currentPath}
+    user={{ name: userName, email: userEmail }}
+    page={page}
+  />
+</AdminLayout>

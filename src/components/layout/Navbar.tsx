@@ -1,10 +1,4 @@
 import { useState, useEffect } from 'react';
-import {
-  SignedIn,
-  SignedOut,
-  UserButton,
-  SignInButton,
-} from '@clerk/astro/react';
 
 interface NavLink {
   label: string;
@@ -16,6 +10,8 @@ interface NavbarProps {
   logoWhite?: string;
   links?: NavLink[];
   transparent?: boolean;
+  isLoggedIn?: boolean;
+  userName?: string;
 }
 
 const defaultLinks: NavLink[] = [
@@ -32,6 +28,8 @@ export default function Navbar({
   logoWhite,
   links = defaultLinks,
   transparent = true,
+  isLoggedIn = false,
+  userName,
 }: NavbarProps) {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -42,14 +40,11 @@ export default function Navbar({
       setIsScrolled(scrollTop > 50);
     };
 
-    // Check initial scroll position
     handleScroll();
-
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Close mobile menu on resize
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth >= 768) {
@@ -60,6 +55,11 @@ export default function Navbar({
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  async function handleSignOut() {
+    await fetch('/api/auth/sign-out', { method: 'POST' });
+    window.location.href = '/';
+  }
 
   const navClasses = transparent
     ? isScrolled
@@ -169,63 +169,36 @@ export default function Navbar({
             </a>
 
             {/* Auth - Desktop */}
-            <SignedIn>
-              <a
-                href="/account"
-                className={`hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-300 ${buttonClasses}`}
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-4 w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                  />
-                </svg>
-                My Account
-              </a>
-              <div className="hidden sm:block">
-                <UserButton
-                  afterSignOutUrl="/"
-                  appearance={{
-                    elements: {
-                      avatarBox: 'w-9 h-9',
-                      userButtonPopoverCard: 'shadow-xl',
-                    },
-                  }}
-                />
-              </div>
-            </SignedIn>
-            <SignedOut>
-              <SignInButton mode="modal">
-                <button
-                  type="button"
+            {isLoggedIn ? (
+              <>
+                <a
+                  href="/account"
                   className={`hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-300 ${buttonClasses}`}
                 >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-4 w-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"
-                    />
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                   </svg>
-                  Sign In
+                  {userName || 'My Account'}
+                </a>
+                <button
+                  type="button"
+                  onClick={handleSignOut}
+                  className={`hidden sm:inline-flex items-center gap-2 px-3 py-2 rounded-lg font-medium text-sm transition-all duration-300 ${textClasses} ${hoverClasses}`}
+                >
+                  Sign Out
                 </button>
-              </SignInButton>
-            </SignedOut>
+              </>
+            ) : (
+              <a
+                href="/sign-in"
+                className={`hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-300 ${buttonClasses}`}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                </svg>
+                Sign In
+              </a>
+            )}
 
             {/* Mobile Menu Button */}
             <button
@@ -235,27 +208,11 @@ export default function Navbar({
               aria-label="Toggle menu"
               aria-expanded={isMobileMenuOpen}
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-6 w-6"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 {isMobileMenuOpen ? (
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
-                  />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 ) : (
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4 6h16M4 12h16M4 18h16"
-                  />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
                 )}
               </svg>
             </button>
@@ -268,9 +225,7 @@ export default function Navbar({
             isMobileMenuOpen ? 'max-h-[500px] mt-4' : 'max-h-0'
           }`}
         >
-          <div className={`py-4 border-t ${
-            transparent && !isScrolled ? 'border-white/20' : 'border-gray-200'
-          }`}>
+          <div className={`py-4 border-t ${transparent && !isScrolled ? 'border-white/20' : 'border-gray-200'}`}>
             <div className="flex flex-col gap-3">
               {links.map((link) => (
                 <a
@@ -282,55 +237,31 @@ export default function Navbar({
                   {link.label}
                 </a>
               ))}
-              {/* Mobile Auth Buttons */}
-              <SignedIn>
-                <a
-                  href="/account"
-                  className={`mt-2 inline-flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all duration-300 ${buttonClasses}`}
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-4 w-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                    />
-                  </svg>
-                  My Account
-                </a>
-              </SignedIn>
-              <SignedOut>
-                <SignInButton mode="modal">
-                  <button
-                    type="button"
+              {isLoggedIn ? (
+                <>
+                  <a
+                    href="/account"
                     className={`mt-2 inline-flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all duration-300 ${buttonClasses}`}
                     onClick={() => setIsMobileMenuOpen(false)}
                   >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-4 w-4"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"
-                      />
-                    </svg>
-                    Sign In
+                    My Account
+                  </a>
+                  <button
+                    onClick={() => { setIsMobileMenuOpen(false); handleSignOut(); }}
+                    className={`inline-flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all duration-300 ${textClasses}`}
+                  >
+                    Sign Out
                   </button>
-                </SignInButton>
-              </SignedOut>
+                </>
+              ) : (
+                <a
+                  href="/sign-in"
+                  className={`mt-2 inline-flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all duration-300 ${buttonClasses}`}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  Sign In
+                </a>
+              )}
             </div>
           </div>
         </div>

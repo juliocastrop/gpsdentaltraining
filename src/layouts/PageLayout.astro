@@ -30,9 +30,10 @@
 import '../styles/global.css';
 import Navbar from '../components/layout/Navbar';
 import Footer from '../components/layout/Footer';
-import { getSiteSettings } from '../lib/data/site-settings-loader';
+import { getSiteSettings, getFooterProps } from '../lib/data/site-settings-loader';
 
 const siteSettings = await getSiteSettings();
+const footerProps = getFooterProps(siteSettings);
 
 interface Breadcrumb {
   label: string;
@@ -146,6 +147,7 @@ const waveFillColor = waveColor === 'white' ? 'white' : waveColor === 'gray' ? '
       logo={siteSettings.logo_url}
       logoWhite={siteSettings.logo_white_url}
       transparent={isNavbarTransparent}
+      isLoggedIn={!!Astro.locals.userId}
       client:load
     />
 
@@ -279,6 +281,6 @@ const waveFillColor = waveColor === 'white' ? 'white' : waveColor === 'gray' ? '
     </main>
 
     <!-- Footer -->
-    <Footer />
+    <Footer {...footerProps} />
   </body>
 </html>

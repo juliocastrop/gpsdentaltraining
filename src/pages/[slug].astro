@@ -1,0 +1,221 @@
+---
+/**
+ * Dynamic CMS Page Renderer - GPS Dental Training
+ * Renders pages from the `pages` table based on slug
+ * Handles: terms, privacy, refer, and any other CMS-managed pages
+ */
+import PageLayout from '../layouts/PageLayout.astro';
+import { supabaseAdmin } from '../lib/supabase/client';
+
+const { slug } = Astro.params;
+
+// Skip slugs that have dedicated routes (they take priority via Astro routing)
+// This catch-all only handles pages from the DB
+const { data: page } = await supabaseAdmin
+  .from('pages')
+  .select('*')
+  .eq('slug', slug)
+  .eq('status', 'published')
+  .single();
+
+if (!page) {
+  return Astro.redirect('/404');
+}
+
+const sections = page.content?.sections || [];
+
+// Simple Markdown-to-HTML converter for rich text
+function md(text: string): string {
+  if (!text) return '';
+  return text
+    // Headings
+    .replace(/^### (.+)$/gm, '<h3 class="text-xl font-bold text-[#13326A] mt-6 mb-3">$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2 class="text-2xl font-bold text-[#13326A] mt-8 mb-4">$1</h2>')
+    .replace(/^# (.+)$/gm, '<h1 class="text-3xl font-bold text-[#13326A] mt-8 mb-4">$1</h1>')
+    // Bold & Italic
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    // Links
+    .replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" class="text-[#0B52AC] hover:underline font-medium">$1</a>')
+    // Unordered lists
+    .replace(/^- (.+)$/gm, '<li class="ml-4 list-disc">$1</li>')
+    // Ordered lists
+    .replace(/^\d+\. (.+)$/gm, '<li class="ml-4 list-decimal">$1</li>')
+    // Wrap consecutive <li> items
+    .replace(/((?:<li[^>]*>.*<\/li>\n?)+)/g, '<ul class="space-y-1 my-4">$1</ul>')
+    // Paragraphs (lines that aren't already wrapped)
+    .replace(/^(?!<[hulo]).+$/gm, (line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return '';
+      return `<p class="text-[#4E6E82] leading-relaxed mb-4">${trimmed}</p>`;
+    })
+    // Clean up empty paragraphs
+    .replace(/<p class="[^"]*"><\/p>/g, '')
+    // Line breaks
+    .replace(/\n{2,}/g, '\n');
+}
+---
+
+<PageLayout
+  title={page.meta_title || page.title}
+  description={page.meta_description || `${page.title} - GPS Dental Training`}
+  ogImage={page.og_image_url}
+  breadcrumbs={[{ label: page.title }]}
+  heroTitle={page.title}
+  heroTitleAccent={page.subtitle || undefined}
+  heroDescription=""
+>
+  {sections.map((section: any) => {
+    if (section.type === 'richtext') {
+      return (
+        <section class="py-12 lg:py-16 bg-white">
+          <div class="max-w-4xl mx-auto px-6">
+            {section.data.heading && (
+              <h2 class="text-3xl font-bold text-[#13326A] mb-8">{section.data.heading}</h2>
+            )}
+            <div class="prose prose-lg max-w-none" set:html={md(section.data.body || '')} />
+          </div>
+        </section>
+      );
+    }
+
+    if (section.type === 'hero') {
+      return (
+        <section
+          class="py-16 lg:py-24 text-center"
+          style={`background-color: ${section.data.bg_color || '#13326A'}; color: ${section.data.text_color || '#fff'};${section.data.image_url ? ` background-image: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url(${section.data.image_url}); background-size: cover; background-position: center;` : ''}`}
+        >
+          <div class="max-w-4xl mx-auto px-6">
+            {section.data.heading && (
+              <h2 class="text-3xl lg:text-5xl font-bold mb-4">{section.data.heading}</h2>
+            )}
+            {section.data.subtitle && (
+              <p class="text-xl opacity-90">{section.data.subtitle}</p>
+            )}
+          </div>
+        </section>
+      );
+    }
+
+    if (section.type === 'image_text') {
+      const isImageLeft = section.data.layout !== 'image-right';
+      return (
+        <section class="py-12 lg:py-16 bg-white">
+          <div class={`max-w-6xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center ${!isImageLeft ? 'lg:direction-rtl' : ''}`}>
+            <div class={isImageLeft ? '' : 'lg:order-2'}>
+              {section.data.image_url && (
+                <img
+                  src={section.data.image_url}
+                  alt={section.data.image_alt || ''}
+                  class="w-full rounded-2xl shadow-lg"
+                />
+              )}
+            </div>
+            <div class={isImageLeft ? '' : 'lg:order-1'}>
+              {section.data.heading && (
+                <h2 class="text-3xl font-bold text-[#13326A] mb-6">{section.data.heading}</h2>
+              )}
+              <div class="prose prose-lg max-w-none" set:html={md(section.data.body || '')} />
+            </div>
+          </div>
+        </section>
+      );
+    }
+
+    if (section.type === 'faq') {
+      return (
+        <section class="py-12 lg:py-16 bg-gray-50">
+          <div class="max-w-3xl mx-auto px-6">
+            {section.data.heading && (
+              <h2 class="text-3xl font-bold text-[#13326A] text-center mb-10">{section.data.heading}</h2>
+            )}
+            <div class="space-y-4">
+              {(section.data.items || []).map((item: any) => (
+                <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                  <details class="group">
+                    <summary class="flex items-center justify-between cursor-pointer list-none p-5">
+                      <h3 class="text-lg font-bold text-[#13326A] pr-4">{item.question}</h3>
+                      <svg class="w-5 h-5 text-[#4E6E82] group-open:rotate-180 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </summary>
+                    <div class="px-5 pb-5 prose max-w-none" set:html={md(item.answer || '')} />
+                  </details>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      );
+    }
+
+    if (section.type === 'cta') {
+      return (
+        <section
+          class="py-16 lg:py-20 text-center text-white"
+          style={`background-color: ${section.data.bg_color || '#13326A'};`}
+        >
+          <div class="max-w-3xl mx-auto px-6">
+            {section.data.heading && (
+              <h2 class="text-3xl lg:text-4xl font-bold mb-4">{section.data.heading}</h2>
+            )}
+            {section.data.description && (
+              <p class="text-xl opacity-90 mb-8">{section.data.description}</p>
+            )}
+            <div class="flex flex-wrap justify-center gap-4">
+              {section.data.primary_label && section.data.primary_href && (
+                <a
+                  href={section.data.primary_href}
+                  class="bg-[#DDC89D] text-[#0C2044] px-8 py-4 rounded-xl font-bold hover:bg-white transition-all shadow-lg"
+                >
+                  {section.data.primary_label}
+                </a>
+              )}
+              {section.data.secondary_label && section.data.secondary_href && (
+                <a
+                  href={section.data.secondary_href}
+                  class="bg-white/10 backdrop-blur text-white px-8 py-4 rounded-xl font-bold border border-white/30 hover:bg-white/20 transition-all"
+                >
+                  {section.data.secondary_label}
+                </a>
+              )}
+            </div>
+          </div>
+        </section>
+      );
+    }
+
+    if (section.type === 'html') {
+      return (
+        <section class="py-12 lg:py-16 bg-white">
+          <div class="max-w-6xl mx-auto px-6" set:html={section.data.code || ''} />
+        </section>
+      );
+    }
+
+    if (section.type === 'divider') {
+      if (section.data.style === 'space') {
+        return <div class="py-8" />;
+      }
+      if (section.data.style === 'dots') {
+        return (
+          <div class="py-8 text-center">
+            <span class="text-gray-300 text-2xl tracking-[1em]">...</span>
+          </div>
+        );
+      }
+      return <hr class="my-8 border-gray-200 max-w-4xl mx-auto" />;
+    }
+
+    return null;
+  })}
+
+  {/* Fallback if no sections */}
+  {sections.length === 0 && (
+    <section class="py-16 bg-white">
+      <div class="max-w-4xl mx-auto px-6 text-center text-gray-500">
+        <p>This page is under construction.</p>
+      </div>
+    </section>
+  )}
+</PageLayout>

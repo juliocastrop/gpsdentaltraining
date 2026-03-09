@@ -9,6 +9,7 @@
  */
 import Navbar from '../../layout/Navbar';
 import Footer from '../../layout/Footer';
+import { getFooterProps } from '../../../lib/data/site-settings-loader';
 import AddToCalendar from '../../events/AddToCalendar';
 
 interface SessionStats {
@@ -51,6 +52,8 @@ const {
   sessionStats,
 } = Astro.props;
 
+const footerProps = getFooterProps(siteSettings as any);
+
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -70,7 +73,8 @@ const mapEmbedUrl = `https://www.google.com/maps?q=${encodeURIComponent(mapAddre
   logo={siteSettings.logo_url}
   logoWhite={siteSettings.logo_white_url}
   transparent={true}
-  client:load
+  isLoggedIn={!!Astro.locals.userId}
+      client:load
 />
 
 <!-- Hero Section: Featured Image Background -->
@@ -147,7 +151,8 @@ const mapEmbedUrl = `https://www.google.com/maps?q=${encodeURIComponent(mapAddre
           endDate={sessionStats.nextSession.session_date}
           url={url.toString()}
           variant="icon"
-          client:load
+          isLoggedIn={!!Astro.locals.userId}
+      client:load
         />
       )}
     </div>
@@ -636,7 +641,7 @@ const mapEmbedUrl = `https://www.google.com/maps?q=${encodeURIComponent(mapAddre
 </section>
 
 <!-- Footer -->
-<Footer client:load />
+<Footer {...footerProps} client:load />
 
 <!-- Classic Template Styles -->
 <style>

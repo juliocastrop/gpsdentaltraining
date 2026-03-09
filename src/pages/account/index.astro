@@ -4,29 +4,19 @@
  * Protected page showing user's overview and quick links
  */
 import '../../styles/global.css';
-import { getSiteSettings } from '../../lib/data/site-settings-loader';
+import { getSiteSettings, getFooterProps } from '../../lib/data/site-settings-loader';
 const siteSettings = await getSiteSettings();
+const footerProps = getFooterProps(siteSettings);
 import Navbar from '../../components/layout/Navbar';
 import Footer from '../../components/layout/Footer';
 import { supabaseAdmin } from '../../lib/supabase/client';
 
-// Check if Clerk is configured
-const clerkConfigured = !!process.env.PUBLIC_CLERK_PUBLISHABLE_KEY;
+// Get user from Supabase Auth
+const userId = Astro.locals.userId;
 
-// Get user from Clerk if available
-let userId: string | null = null;
-try {
-  if (clerkConfigured && Astro.locals.auth) {
-    const auth = Astro.locals.auth();
-    userId = auth?.userId || null;
-  }
-} catch {
-  // Clerk not available
-}
+// Redirect if not logged in
 
-// If Clerk is not configured, show a demo/placeholder page
-// In production with Clerk, redirect to sign-in if not authenticated
-if (clerkConfigured && !userId) {
+if (!userId) {
   return Astro.redirect('/sign-in?redirect_url=/account');
 }
 
@@ -37,13 +27,13 @@ let totalCredits = 0;
 let ordersCount = 0;
 let certificatesCount = 0;
 
-// Only fetch data if we have a userId (Clerk is configured and user is logged in)
+// Only fetch data if we have a userId
 if (userId) {
   // Get user data from Supabase
   const { data: userData } = await supabaseAdmin
     .from('users')
     .select('*')
-    .eq('clerk_id', userId)
+    .eq('auth_id', userId)
     .single();
   user = userData;
 
@@ -126,6 +116,8 @@ function formatDate(dateStr: string): string {
     <Navbar
       logo={siteSettings.logo_url}
       transparent={false}
+      isLoggedIn={!!Astro.locals.userId}
+      userName={user?.first_name || undefined}
       client:load
     />
 
@@ -269,6 +261,12 @@ function formatDate(dateStr: string): string {
                 <h2 class="text-lg font-bold text-[#0C2044]">Quick Links</h2>
               </div>
               <nav class="p-2">
+                <a href="/account/profile" class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-50 transition-colors">
+                  <svg class="w-5 h-5 text-[#0B52AC]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                  </svg>
+                  <span class="font-medium text-[#0C2044]">My Profile</span>
+                </a>
                 <a href="/account/courses" class="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-50 transition-colors">
                   <svg class="w-5 h-5 text-[#0B52AC]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
@@ -326,6 +324,6 @@ function formatDate(dateStr: string): string {
       </div>
     </main>
 
-    <Footer client:load />
+    <Footer {...footerProps} client:load />
   </body>
 </html>

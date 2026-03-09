@@ -4,8 +4,9 @@
  * Shown when user cancels the Stripe checkout
  */
 import '../../styles/global.css';
-import { getSiteSettings } from '../../lib/data/site-settings-loader';
+import { getSiteSettings, getFooterProps } from '../../lib/data/site-settings-loader';
 const siteSettings = await getSiteSettings();
+const footerProps = getFooterProps(siteSettings);
 import Navbar from '../../components/layout/Navbar';
 import Footer from '../../components/layout/Footer';
 ---
@@ -31,6 +32,7 @@ import Footer from '../../components/layout/Footer';
     <Navbar
       logo={siteSettings.logo_url}
       transparent={false}
+      isLoggedIn={!!Astro.locals.userId}
       client:load
     />
 
@@ -125,6 +127,6 @@ import Footer from '../../components/layout/Footer';
       </div>
     </main>
 
-    <Footer client:load />
+    <Footer {...footerProps} client:load />
   </body>
 </html>

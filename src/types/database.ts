@@ -45,7 +45,8 @@ export type LayoutTemplate = 'modern' | 'classic';
 
 export interface User {
   id: string;
-  clerk_id: string;
+  clerk_id: string | null;
+  auth_id: string | null;
   email: string;
   first_name: string | null;
   last_name: string | null;
@@ -508,7 +509,8 @@ export interface WaitlistEntry {
 // ============================================================
 
 export interface InsertUser {
-  clerk_id: string;
+  clerk_id: string | null;
+  auth_id: string | null;
   email: string;
   first_name?: string;
   last_name?: string;
