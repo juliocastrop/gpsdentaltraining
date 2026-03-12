@@ -51,6 +51,9 @@ interface GeneralSettingsData {
   default_event_capacity: number;
   waitlist_expiration_hours: number;
 
+  // Navbar
+  navbar_logo_height: number;
+
   // Footer
   footer_description: string;
   footer_links: FooterLink[];
@@ -506,6 +509,35 @@ export default function GeneralSettings({
                     className="mt-1 w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500"
                   />
                 </details>
+              </div>
+
+              {/* Logo Height */}
+              <div className="border-t border-gray-100 pt-5">
+                <label className={labelClass}>Navbar Logo Height</label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="range"
+                    min={24}
+                    max={80}
+                    aria-label="Navbar logo height slider"
+                    value={settings.navbar_logo_height}
+                    onChange={(e) => setSettings({ ...settings, navbar_logo_height: Number(e.target.value) })}
+                    className="flex-1 accent-blue-600"
+                  />
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      min={24}
+                      max={80}
+                      aria-label="Navbar logo height in pixels"
+                      value={settings.navbar_logo_height}
+                      onChange={(e) => setSettings({ ...settings, navbar_logo_height: Number(e.target.value) || 48 })}
+                      className="w-16 px-2 py-1.5 border border-gray-300 rounded text-sm text-center focus:ring-1 focus:ring-blue-500"
+                    />
+                    <span className="text-xs text-gray-500">px</span>
+                  </div>
+                </div>
+                <p className="mt-1 text-xs text-gray-500">Controls the logo height in the navigation bar (default: 40px)</p>
               </div>
             </div>
           </div>

@@ -116,8 +116,8 @@ export default function Footer({
     <footer className="bg-[#13326A]">
       {/* Main Footer Content */}
       <div className="bg-[#173D84]">
-        <div className="container-wide py-16">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12">
+        <div className="container-wide py-10 md:py-16">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-12">
             {/* Logo & Description */}
             <div className="lg:col-span-1">
               <div className="mb-6">
@@ -131,10 +131,6 @@ export default function Footer({
                     </div>
                   </div>
                 )}
-                <div className="flex items-center gap-1 mt-1">
-                  <div className="w-2 h-2 bg-[#DDC89D]"></div>
-                  <span className="text-[#DDC89D] text-sm tracking-[0.3em] font-medium">TRAINING</span>
-                </div>
               </div>
 
               <p className="text-white/80 text-base leading-relaxed mb-6">
@@ -145,7 +141,7 @@ export default function Footer({
                 <div className="flex items-center gap-3 bg-white/10 rounded-lg p-4">
                   <div className="flex-shrink-0">
                     {paceImageUrl ? (
-                      <img src={paceImageUrl} alt="PACE" className="h-10 w-10 object-contain" />
+                      <img src={paceImageUrl} alt="PACE" className="h-12 w-auto object-contain" />
                     ) : (
                       <svg className="w-10 h-10 text-white" viewBox="0 0 40 40" fill="none">
                         <path d="M20 0L24.5 15.5H40L27.5 25L32 40L20 30.5L8 40L12.5 25L0 15.5H15.5L20 0Z" fill="currentColor" opacity="0.3"/>
@@ -154,7 +150,6 @@ export default function Footer({
                     )}
                   </div>
                   <div>
-                    <p className="text-white font-semibold text-sm">PACE</p>
                     {paceLines.map((line, i) => (
                       <p key={i} className="text-white/70 text-xs leading-tight">{line}</p>
                     ))}

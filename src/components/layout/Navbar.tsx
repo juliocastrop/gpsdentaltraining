@@ -8,6 +8,7 @@ interface NavLink {
 interface NavbarProps {
   logo?: string;
   logoWhite?: string;
+  logoHeight?: number;
   links?: NavLink[];
   transparent?: boolean;
   isLoggedIn?: boolean;
@@ -26,6 +27,7 @@ const defaultLinks: NavLink[] = [
 export default function Navbar({
   logo,
   logoWhite,
+  logoHeight = 40,
   links = defaultLinks,
   transparent = true,
   isLoggedIn = false,
@@ -103,7 +105,8 @@ export default function Navbar({
               <img
                 src={currentLogo}
                 alt="GPS Dental Training"
-                className="h-10 md:h-12 transition-all duration-300"
+                style={{ height: `${logoHeight}px` }}
+                className="w-auto transition-all duration-300"
               />
             ) : (
               <div className="flex flex-col">

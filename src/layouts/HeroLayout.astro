@@ -71,6 +71,7 @@ const fullOgImage = ogImage.startsWith('http') ? ogImage : `${siteUrl}${ogImage}
       <Navbar
         logo={logo}
         logoWhite={logoWhite}
+        logoHeight={siteSettings.navbar_logo_height}
         transparent={true}
         isLoggedIn={!!Astro.locals.userId}
         client:load

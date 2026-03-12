@@ -34,6 +34,9 @@ export interface SiteSettings {
   vimeo_url: string;
   youtube_url: string;
 
+  // Navbar
+  navbar_logo_height: number; // px, default 48 (h-12)
+
   // Footer
   footer_description: string;
   footer_links: FooterLink[];
@@ -65,6 +68,8 @@ const defaults: SiteSettings = {
   vimeo_url: 'https://vimeo.com/gpsdentaltraining',
   youtube_url: '',
 
+  navbar_logo_height: 40,
+
   footer_description: 'Advanced Education in Implant, Restorative and Digital dentistry',
   footer_links: [
     { label: 'Events', href: '/courses' },
@@ -83,6 +88,15 @@ const defaults: SiteSettings = {
     { label: 'Terms of Service', href: '/terms' },
   ],
 };
+
+/** Build props object for the Navbar component from SiteSettings */
+export function getNavbarProps(s: SiteSettings) {
+  return {
+    logo: s.logo_url,
+    logoWhite: s.logo_white_url,
+    logoHeight: s.navbar_logo_height,
+  };
+}
 
 /** Build props object for the Footer component from SiteSettings */
 export function getFooterProps(s: SiteSettings) {
@@ -160,6 +174,9 @@ export async function getSiteSettings(): Promise<SiteSettings> {
         twitter_url: val.twitter_url || defaults.twitter_url,
         vimeo_url: val.vimeo_url || defaults.vimeo_url,
         youtube_url: val.youtube_url || defaults.youtube_url,
+
+        // Navbar
+        navbar_logo_height: val.navbar_logo_height ?? defaults.navbar_logo_height,
 
         // Footer
         footer_description: val.footer_description ?? defaults.footer_description,
